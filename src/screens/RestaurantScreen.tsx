@@ -12,7 +12,7 @@ import { GoldFrame } from '../components/motifs';
 import { Screen } from '../components/Screen';
 import { useRtlRail } from '../hooks/useRtlRail';
 import { itemsLabel } from '../utils/arabic';
-import { getRestaurant, productsForRestaurant } from '../data/mock';
+import { useCatalog } from '../api/catalog';
 import { food } from '../theme/images';
 import { colors, shadow } from '../theme';
 import { useCart } from '../state/CartContext';
@@ -22,6 +22,7 @@ export default function RestaurantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { getRestaurant, productsForRestaurant } = useCatalog();
   const restaurant = getRestaurant(id ?? 'nuba');
   const menu = productsForRestaurant(restaurant.id);
   const [tab, setTab] = useState(restaurant.menuTabs[0]);
@@ -69,16 +70,32 @@ export default function RestaurantScreen() {
                 {restaurant.cuisine}
               </AppText>
             </View>
-            <AppText family="display" weight="800" size={28} color={colors.white} lineHeight={38} style={{ marginTop: 9 }}>
-              {restaurant.name}
-            </AppText>
-            <View style={styles.goldLine} />
-            <View style={styles.meta}>
-              <AppText family="body" weight="700" size={12} color={colors.white}>
-                {restaurant.rating.toFixed(1)}
+            <View style={styles.titleRow}>
+              <AppText
+                family="display"
+                weight="800"
+                size={28}
+                color={colors.white}
+                lineHeight={38}
+                numberOfLines={1}
+                style={{ flex: 1 }}
+              >
+                {restaurant.name}
               </AppText>
+
+              <View style={styles.rating}>
+                <Icon name="star" size={13} color={colors.saffron} filled />
+                <AppText family="body" weight="700" size={12.5} color={colors.white}>
+                  {restaurant.rating.toFixed(1)}
+                </AppText>
+              </View>
+            </View>
+
+            <View style={styles.goldLine} />
+
+            <View style={styles.meta}>
               <AppText family="body" size={12} color="rgba(255,255,255,0.85)">
-                ({restaurant.reviews} تقييم)
+                {restaurant.reviews} تقييم
               </AppText>
               <View style={styles.dot} />
               <AppText family="body" size={12} color="rgba(255,255,255,0.85)">
@@ -225,6 +242,19 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
   heroInfo: { position: 'absolute', left: 20, right: 20, bottom: 18 },
+  titleRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 10, marginTop: 9 },
+  rating: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(217,162,74,0.45)',
+    flexShrink: 0,
+  },
   tag: {
     alignSelf: 'flex-start',
     backgroundColor: 'rgba(255,255,255,0.15)',
@@ -265,7 +295,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  menuTabs: { flexDirection: 'row-reverse', gap: 8, paddingTop: 14, paddingBottom: 12 },
+  // row-reverse + start = التبويبات بتبدأ من اليمين، و flexGrow عشان تفضل ملزوقة
+  // على اليمين حتى لو عددها أقل من عرض الشاشة.
+  menuTabs: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'flex-start',
+    flexGrow: 1,
+    gap: 8,
+    paddingTop: 14,
+    paddingBottom: 12,
+  },
   mtab: {
     height: 36,
     paddingHorizontal: 14,

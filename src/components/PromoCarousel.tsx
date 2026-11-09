@@ -14,7 +14,7 @@ import { useIsFocused } from 'expo-router';
 import { GoldFrame } from './motifs';
 import { useRtlRail } from '../hooks/useRtlRail';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { promos } from '../data/mock';
+import { useCatalog } from '../api/catalog';
 import { food } from '../theme/images';
 import { colors } from '../theme';
 
@@ -33,6 +33,7 @@ export function PromoCarousel() {
   const pageWidth = Math.max(240, Math.min(windowWidth, 640) - 40);
   const [index, setIndex] = useState(0);
   const reducedMotion = useReducedMotion();
+  const { promos } = useCatalog();
   const focused = useIsFocused();
   const [scrollX] = useState(() => new Animated.Value(0));
   const { setRef, node: scrollRef, onLayout, onContentSizeChange, onScrollBeginDrag } = useRtlRail();
@@ -45,7 +46,7 @@ export function PromoCarousel() {
         animated: !reducedMotion,
       });
     },
-    [pageWidth, reducedMotion, scrollRef],
+    [pageWidth, reducedMotion, scrollRef, promos.length],
   );
 
   // بنكتب الدالة بإيدينا بدل `Animated.event`: نسخة RN دي بترجّع كائن
@@ -65,7 +66,7 @@ export function PromoCarousel() {
       const next = Math.max(0, Math.min(promos.length - 1, promos.length - 1 - fromLeft));
       setIndex(next);
     },
-    [pageWidth],
+    [pageWidth, promos.length],
   );
 
   // تنقّل تلقائي هادي — بيتوقف لو المستخدم طلب تقليل الحركة، أو الشاشة مش ظاهرة.
@@ -75,7 +76,7 @@ export function PromoCarousel() {
     const next = (index + 1) % promos.length;
     const timer = setTimeout(() => goTo(next), AUTO_ADVANCE_MS);
     return () => clearTimeout(timer);
-  }, [index, reducedMotion, focused, goTo]);
+  }, [index, reducedMotion, focused, goTo, promos.length]);
 
   return (
     <View style={{ marginTop: 18 }}>

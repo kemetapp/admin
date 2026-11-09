@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
-import { getRestaurant, type Product } from '../data/mock';
+import { type Product } from '../data/mock';
+import { useCatalog } from '../api/catalog';
 import { food } from '../theme/images';
 import { colors } from '../theme';
 
@@ -16,6 +17,7 @@ export function ProductCard({
   rank?: number;
   onPress: () => void;
 }) {
+  const { getRestaurant } = useCatalog();
   const restaurant = getRestaurant(product.restaurantId);
   return (
     <Pressable

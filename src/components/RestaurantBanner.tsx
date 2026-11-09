@@ -48,7 +48,7 @@ export function RestaurantBanner({
           <AppText
             family="display"
             weight="800"
-            size={15.5}
+            size={14.5}
             color={colors.ink}
             lineHeight={23}
             numberOfLines={1}
@@ -81,7 +81,7 @@ export function RestaurantBanner({
 const styles = StyleSheet.create({
   wrap: {
     backgroundColor: colors.card,
-    borderRadius: 22,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.goldLine,
     overflow: 'hidden',
@@ -89,7 +89,8 @@ const styles = StyleSheet.create({
   },
   cover: {
     width: '100%',
-    aspectRatio: 2,
+    // أرتفاع ثابت أصغر من قبل (كان نسبة 2:1 يعني ~175px)
+    height: 132,
     backgroundColor: colors.oliveDeep,
   },
   sticker: {
@@ -104,9 +105,9 @@ const styles = StyleSheet.create({
     zIndex: 4,
   },
   info: {
-    paddingHorizontal: 14,
-    paddingTop: 11,
-    paddingBottom: 13,
+    paddingHorizontal: 12,
+    paddingTop: 9,
+    paddingBottom: 11,
   },
   titleRow: {
     flexDirection: 'row-reverse',

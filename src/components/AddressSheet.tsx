@@ -3,9 +3,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from './AppText';
 import { Icon } from './Icon';
 import { Sheet } from './Sheet';
-import { addresses } from '../data/mock';
 import { colors } from '../theme';
-import { selectAddress, useAddress } from '../state/addresses';
+import { selectAddress, useAddress, useAddresses } from '../state/addresses';
 
 /** شيت اختيار عنوان التوصيل — مستخدم في الرئيسية وإتمام الطلب. */
 export function AddressSheet({
@@ -16,6 +15,7 @@ export function AddressSheet({
   onClose: () => void;
 }) {
   const address = useAddress();
+  const list = useAddresses();
 
   return (
     <Sheet
@@ -24,7 +24,7 @@ export function AddressSheet({
       title="بتوصل فين؟"
       subtitle="اختار عنوان التوصيل — كل العناوين في أسوان"
     >
-      {addresses.map((item) => {
+      {list.map((item) => {
         const active = item.id === address.id;
         return (
           <Pressable

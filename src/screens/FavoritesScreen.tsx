@@ -6,7 +6,7 @@ import { AppText } from '../components/AppText';
 import { Icon } from '../components/Icon';
 import { PrimaryButton } from '../components/ui';
 import { Screen } from '../components/Screen';
-import { restaurants } from '../data/mock';
+import { useCatalog } from '../api/catalog';
 import { food } from '../theme/images';
 import { colors } from '../theme';
 import { toggleFavorite, useFavorites } from '../state/favorites';
@@ -14,6 +14,7 @@ import { toggleFavorite, useFavorites } from '../state/favorites';
 export default function FavoritesScreen() {
   const router = useRouter();
   const favorites = useFavorites();
+  const { restaurants } = useCatalog();
   const list = restaurants.filter((restaurant) => favorites.includes(restaurant.id));
 
   return (

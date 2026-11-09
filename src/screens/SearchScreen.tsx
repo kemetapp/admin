@@ -14,7 +14,8 @@ import { ProductCard } from '../components/ProductCard';
 import { SectionHeader } from '../components/ui';
 import { Screen } from '../components/Screen';
 import { useRtlRail } from '../hooks/useRtlRail';
-import { categories, products, restaurants, trendingIds } from '../data/mock';
+import { trendingIds } from '../data/mock';
+import { useCatalog } from '../api/catalog';
 import { food } from '../theme/images';
 import { colors, fonts } from '../theme';
 
@@ -41,6 +42,7 @@ function matchesLabel(text: string, label: string) {
 export default function SearchScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ cat?: string; q?: string }>();
+  const { categories, products, restaurants } = useCatalog();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>('near');
@@ -80,9 +82,8 @@ export default function SearchScreen() {
       trendingIds
         .map((id) => products.find((p) => p.id === id))
         .filter((p): p is NonNullable<typeof p> => Boolean(p)),
-    [],
+    [products],
   );
-
   const productResults = useMemo(() => {
     if (!filtering) return [];
     const cat = activeCat?.label;
@@ -105,7 +106,7 @@ export default function SearchScreen() {
       const resto = restaurants.find((r) => r.id === p.restaurantId);
       return resto ? matchesLabel(resto.cuisine, cat) : false;
     });
-  }, [filtering, normalized, activeCat]);
+  }, [filtering, normalized, activeCat, products, restaurants]);
 
   const restaurantResults = useMemo(() => {
     const cat = activeCat?.label;
@@ -124,7 +125,7 @@ export default function SearchScreen() {
     if (sort === 'rating') list = [...list].sort((a, b) => b.rating - a.rating);
     if (sort === 'fast') list = [...list].sort((a, b) => prepMinutes(a.prep) - prepMinutes(b.prep));
     return list;
-  }, [normalized, activeCat, sort]);
+  }, [normalized, activeCat, sort, restaurants]);
 
   const showEmpty =
     filtering && productResults.length === 0 && restaurantResults.length === 0;

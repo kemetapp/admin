@@ -13,7 +13,8 @@ import { Icon } from '../components/Icon';
 import { TempleImage, SheetHandle } from '../components/motifs';
 import { PrimaryButton, Stepper } from '../components/ui';
 import { ConfirmDialog } from '../components/Sheet';
-import { getProduct, getRestaurant, type Option } from '../data/mock';
+import { type Option } from '../data/mock';
+import { useCatalog } from '../api/catalog';
 import { food } from '../theme/images';
 import { colors, fonts, shadowStrong } from '../theme';
 import { useCart } from '../state/CartContext';
@@ -22,6 +23,7 @@ export default function ItemSheetScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { getProduct, getRestaurant } = useCatalog();
   const product = getProduct(id ?? 'nuba-kofta');
   const restaurant = getRestaurant(product.restaurantId);
   const { addLine, replaceCart, restaurantId, restaurantName } = useCart();

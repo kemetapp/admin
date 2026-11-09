@@ -1,27 +1,37 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
+  Animated,
   Pressable,
   ScrollView,
   StyleSheet,
   View,
   useWindowDimensions,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '../components/AppText';
-import { Cartouche, TempleImage, WingedSun } from '../components/motifs';
-import { PrimaryButton } from '../components/ui';
-import { Icon, type IconName } from '../components/Icon';
-import { Screen } from '../components/Screen';
+import { Icon } from '../components/Icon';
+import {
+  Ankh,
+  GlyphColumn,
+  PalmFrond,
+  PapyrusBackground,
+  PatternBand,
+  TempleImage,
+  WingedScarab,
+} from '../components/motifs';
 import { food, type FoodKey } from '../theme/images';
-import { colors, shadow } from '../theme';
-import { markOnboarded } from '../state/session';
+import { colors } from '../theme';
+import { markGuest, markOnboarded } from '../state/session';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { useRtlRail } from '../hooks/useRtlRail';
 
 type Slide = {
   image: FoodKey;
   badge: string;
-  chipTitle: string;
-  chipSub: string;
-  chipIcon: IconName;
   title: string;
   body: string;
   cta: string;
@@ -31,51 +41,85 @@ const slides: Slide[] = [
   {
     image: 'grill',
     badge: 'أكل بلدي أصيل',
-    chipTitle: 'أسوان، كورنيش النيل',
-    chipSub: 'توصيل في 30 دقيقة',
-    chipIcon: 'pin',
-    title: 'كل أكل البلد\nفي مكان واحد',
-    body: 'من الكشري والمشويات لأم علي والحلويات — اطلب من أحسن مطاعم أسوان ووصلك لحد باب البيت.',
-    cta: 'يلا نبدأ',
+    title: 'مرحبًا بك في كيميت',
+    body: 'تطبيق توصيل طلباتك المفضل\nبلمسة مصرية أصيلة',
+    cta: 'ابدأ الآن',
   },
   {
     image: 'rice',
     badge: 'أسرع توصيل',
-    chipTitle: '20–30 دقيقة',
-    chipSub: 'متوسط وقت التوصيل',
-    chipIcon: 'clock',
-    title: 'اطلب في ثواني\nوتابع كل خطوة',
-    body: 'اختار أكلك، حدد الإضافات، وادفع بالطريقة اللي تريحك. إحنا بنوصل الباقي.',
+    title: 'اطلب في ثواني',
+    body: 'اختار أكلك وحدد الإضافات، وإحنا نوصل الباقي\nلحد باب البيت.',
     cta: 'التالي',
   },
   {
     image: 'dessert',
     badge: 'توصيل مجاني',
-    chipTitle: 'أحمد في الطريق',
-    chipSub: 'على بعد 1.2 كم · 18 دقيقة',
-    chipIcon: 'scooter',
-    title: 'تابع طلبك\nلحد باب البيت',
-    body: 'شوف المندوب على الخريطة، كل مرحلة في الطلب، واستلم أكلك سخن.',
-    cta: 'أنشئ حسابك',
+    title: 'تابع طلبك خطوة بخطوة',
+    body: 'شوف المندوب على الخريطة وكل مرحلة في الطلب\nواستلم أكلك سخن.',
+    cta: 'التالي',
   },
 ];
 
+/**
+ * شاشات الافتتاح — قوس المعبد في النص، الجعران المجنّح فوق اسم التطبيق،
+ * وأعمدة هيروغليفية على الجانبين وشريط زخرفي تحت.
+ * السحب بين الصفحات بيدخل بعمق (تصغير + بهتان للجانبين).
+ */
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const reducedMotion = useReducedMotion();
   const [index, setIndex] = useState(0);
-  const slide = slides[index];
+  const [scrollX] = useState(() => new Animated.Value(0));
+  const { setRef, node, onLayout, onContentSizeChange, onScrollBeginDrag } = useRtlRail();
 
-  const artHeight = Math.min(356, Math.max(236, Math.round(height * 0.42)));
-  const artWidth = Math.round((artHeight * 300) / 356);
+  const last = index === slides.length - 1;
 
-  const next = () => {
-    if (index === slides.length - 1) {
+  // القوس بيتوسّط المساحة بين عمودي الهيروغليفية بالظبط:
+  // بنحسب عرض العمود الأول وبعدين بنطرح هوامشه من عرض الشاشة.
+  const glyphHeight = Math.min(280, Math.max(216, Math.round(height * 0.34)) + 20);
+  const glyphWidth = Math.round((glyphHeight * 20) / 240);
+  const artWidth = Math.min(300, Math.max(190, width - 2 * glyphWidth - 36));
+  const artHeight = Math.min(330, Math.max(196, Math.round(height * 0.34)));
+
+  const goTo = useCallback(
+    (next: number) => {
+      const clamped = Math.max(0, Math.min(slides.length - 1, next));
+      setIndex(clamped);
+      node?.scrollTo({
+        x: (slides.length - 1 - clamped) * width,
+        animated: !reducedMotion,
+      });
+    },
+    [node, width, reducedMotion],
+  );
+
+  const onScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      scrollX.setValue(e.nativeEvent.contentOffset.x);
+    },
+    [scrollX],
+  );
+
+  const handleMomentum = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const fromLeft = Math.round(e.nativeEvent.contentOffset.x / width);
+      setIndex(Math.max(0, Math.min(slides.length - 1, slides.length - 1 - fromLeft)));
+    },
+    [width],
+  );
+
+  const finish = () => {
+    if (last) {
+      // آخر صفحة بتودّي الرئيسية كزائر — يتصفّح الأول، وبعدها بننبهه يعمل حساب.
       void markOnboarded();
-      router.replace('/signup');
+      void markGuest();
+      router.replace('/(tabs)');
       return;
     }
-    setIndex((i) => i + 1);
+    goTo(index + 1);
   };
 
   const skip = () => {
@@ -84,167 +128,259 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <Screen>
-      <View style={styles.top}>
-        <View style={styles.brand}>
-          <Cartouche size={24} />
-          <AppText family="display" weight="800" size={17} color={colors.olive} lineHeight={24}>
-            كيميت
-          </AppText>
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="تخطي"
-          onPress={skip}
-          hitSlop={10}
-        >
-          <AppText family="body" weight="600" size={12.5} color={colors.muted}>
+    <View style={styles.root}>
+      <LinearGradient colors={['#FDF8E9', '#F3E0BC']} style={styles.bg} />
+      <PapyrusBackground />
+
+      <View style={[styles.top, { paddingTop: insets.top + 10 }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="تخطي" onPress={skip} hitSlop={10}>
+          <AppText family="body" weight="600" size={12} color={colors.muted}>
             تخطي
           </AppText>
         </Pressable>
       </View>
 
+      <View style={styles.logo}>
+        <WingedScarab width={Math.min(96, Math.round(width * 0.24))} color={colors.goldDeep} />
+        <AppText
+          family="display"
+          weight="800"
+          size={27}
+          color={colors.oliveDeep}
+          align="center"
+          lineHeight={36}
+          style={styles.wordmark}
+        >
+          KEMET
+        </AppText>
+        <View style={styles.subRow}>
+          <View style={styles.subLine} />
+          <AppText family="body" weight="600" size={9} color={colors.muted} style={styles.subText}>
+            DELIVERY APP
+          </AppText>
+          <View style={styles.subLine} />
+        </View>
+      </View>
+
+      <View pointerEvents="none" style={[styles.glyph, { left: 6 }]}>
+        <GlyphColumn height={glyphHeight} />
+      </View>
+      <View pointerEvents="none" style={[styles.glyph, { right: 6 }]}>
+        <GlyphColumn height={glyphHeight} />
+      </View>
+
       <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
+        ref={setRef}
+        style={{ flex: 1 }}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        decelerationRate="fast"
+        scrollEventThrottle={16}
+        onScroll={onScroll}
+        onLayout={onLayout}
+        onContentSizeChange={onContentSizeChange}
+        onScrollBeginDrag={onScrollBeginDrag}
+        onMomentumScrollEnd={handleMomentum}
+        contentContainerStyle={{ flexDirection: 'row-reverse' }}
       >
-        <View style={{ alignItems: 'center', marginTop: 8 }}>
-          <View style={{ width: artWidth, height: artHeight }}>
-            <TempleImage
-              source={food[slide.image]}
-              height={artHeight}
-              radiusTop={Math.round(artWidth / 2)}
-              radiusBottom={30}
-              width={artWidth}
-            >
-              <View style={styles.artGlow} />
-              <WingedSun
-                width={Math.round(artWidth * 0.31)}
-                color="rgba(255,244,214,0.95)"
-                style={{ position: 'absolute', top: 16, alignSelf: 'center' }}
-              />
-              <View style={styles.badge}>
-                <AppText family="body" weight="700" size={11} color="#3A2A05">
-                  {slide.badge}
-                </AppText>
-              </View>
-            </TempleImage>
+        {slides.map((slide, i) => {
+          const offset = (slides.length - 1 - i) * width;
+          const inputRange = [offset - width, offset, offset + width];
+          const scale = scrollX.interpolate({
+            inputRange,
+            outputRange: [0.93, 1, 0.93],
+            extrapolate: 'clamp',
+          });
+          const opacity = scrollX.interpolate({
+            inputRange,
+            outputRange: [0.5, 1, 0.5],
+            extrapolate: 'clamp',
+          });
 
-            <View style={styles.chip}>
-              <View style={styles.chipIcon}>
-                <Icon name={slide.chipIcon} size={17} color={colors.olive} />
-              </View>
-              <View style={{ flexShrink: 1 }}>
-                <AppText family="body" weight="700" size={11.5} lineHeight={17}>
-                  {slide.chipTitle}
+          return (
+            <View key={slide.image} style={{ width }}>
+              <ScrollView
+                contentContainerStyle={styles.page}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+              >
+                <Animated.View
+                  style={[
+                    styles.archFrame,
+                    {
+                      width: artWidth,
+                      height: artHeight,
+                      opacity,
+                      transform: [{ scale }],
+                      borderTopLeftRadius: Math.round(artWidth / 2),
+                      borderTopRightRadius: Math.round(artWidth / 2),
+                    },
+                  ]}
+                >
+                  <TempleImage
+                    source={food[slide.image]}
+                    width={artWidth - 12}
+                    height={artHeight - 12}
+                    radiusTop={Math.round((artWidth - 12) / 2)}
+                    radiusBottom={24}
+                  >
+                    <LinearGradient
+                      colors={['rgba(20,24,14,0.05)', 'rgba(20,24,14,0.32)']}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    <View style={styles.badge}>
+                      <AppText family="body" weight="700" size={10.5} color="#3A2A05">
+                        {slide.badge}
+                      </AppText>
+                    </View>
+                  </TempleImage>
+                </Animated.View>
+
+                <AppText
+                  family="display"
+                  weight="800"
+                  size={25}
+                  color={colors.oliveDeep}
+                  align="center"
+                  lineHeight={35}
+                  style={{ marginTop: 20, paddingHorizontal: 20 }}
+                >
+                  {slide.title}
                 </AppText>
-                <AppText family="body" size={10} color={colors.muted} lineHeight={15}>
-                  {slide.chipSub}
+
+                <AppText
+                  family="body"
+                  size={13}
+                  color={colors.muted}
+                  align="center"
+                  lineHeight={23}
+                  style={{ marginTop: 8, paddingHorizontal: 28 }}
+                >
+                  {slide.body}
                 </AppText>
-              </View>
+              </ScrollView>
             </View>
-          </View>
-        </View>
-
-        <View style={styles.content}>
-          <View style={styles.dots}>
-            {slides.map((s, i) => (
-              <Pressable
-                key={s.image}
-                accessibilityRole="button"
-                accessibilityLabel={`الشاشة ${i + 1}`}
-                onPress={() => setIndex(i)}
-                style={[styles.dot, i === index && styles.dotOn]}
-              />
-            ))}
-          </View>
-
-          <AppText family="display" weight="800" size={30} lineHeight={39}>
-            {slide.title}
-          </AppText>
-          <AppText family="body" size={13.5} lineHeight={23.5} color={colors.muted} style={{ marginTop: 10 }}>
-            {slide.body}
-          </AppText>
-
-          <PrimaryButton label={slide.cta} onPress={next} style={{ marginTop: 18 }} />
-
-          {index === slides.length - 1 ? (
-            <Pressable onPress={skip} style={{ marginTop: 12 }} hitSlop={8}>
-              <AppText family="body" size={11.5} color={colors.muted} align="center">
-                عندك حساب؟{' '}
-                <AppText family="body" weight="700" size={11.5} color={colors.olive}>
-                  تسجيل الدخول
-                </AppText>
-              </AppText>
-            </Pressable>
-          ) : null}
-        </View>
+          );
+        })}
       </ScrollView>
-    </Screen>
+
+      {/* سعف النخيل في الأركان تحت — بيرسم ورا الزرار */}
+      <View pointerEvents="none" style={[styles.palm, { left: -16, bottom: insets.bottom - 6 }]}>
+        <PalmFrond width={88} opacity={0.34} mirrored />
+      </View>
+      <View pointerEvents="none" style={[styles.palm, { right: -16, bottom: insets.bottom - 6 }]}>
+        <PalmFrond width={88} opacity={0.34} />
+      </View>
+
+      <View style={styles.bottom}>
+        <View style={styles.ankhRow}>
+          <View style={styles.ankhLine} />
+          <Ankh size={14} color={colors.goldDeep} />
+          <View style={styles.ankhLine} />
+        </View>
+
+        <View style={styles.dots}>
+          {slides.map((slide, i) => (
+            <Pressable
+              key={slide.image}
+              accessibilityRole="button"
+              accessibilityLabel={`الشاشة ${i + 1}`}
+              accessibilityState={{ selected: i === index }}
+              hitSlop={10}
+              onPress={() => goTo(i)}
+              style={[styles.dot, i === index && styles.dotOn]}
+            />
+          ))}
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={slides[index].cta}
+          onPress={finish}
+          style={({ pressed }) => [styles.cta, pressed && { opacity: 0.9 }]}
+        >
+          <Icon name="chevronLeft" size={17} color="#F6EFD9" />
+          <AppText family="body" weight="700" size={14.5} color="#F6EFD9" align="center" style={{ flex: 1 }}>
+            {slides[index].cta}
+          </AppText>
+          <View style={{ width: 17 }} />
+        </Pressable>
+      </View>
+
+      <View style={{ paddingBottom: insets.bottom }}>
+        <PatternBand height={18} color={colors.oliveDeep} />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  top: {
-    height: 46,
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    flexShrink: 0,
-  },
-  brand: { flexDirection: 'row-reverse', alignItems: 'center', gap: 7 },
-  scroll: { flexGrow: 1, paddingBottom: 26 },
-  artGlow: {
+  root: { flex: 1, backgroundColor: colors.cream },
+  bg: {
     position: 'absolute',
     top: 0,
-    left: 0,
     right: 0,
-    height: 140,
-    backgroundColor: 'rgba(20,24,14,0.10)',
+    bottom: 0,
+    left: 0,
+  },
+  top: { paddingHorizontal: 24, alignItems: 'flex-start' },
+  logo: { alignItems: 'center', paddingTop: 6 },
+  wordmark: { letterSpacing: 3.5, marginTop: 2 },
+  subRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 2 },
+  subLine: { width: 22, height: 1, backgroundColor: colors.goldLineStrong },
+  subText: { letterSpacing: 2.6 },
+  glyph: { position: 'absolute', top: '34%' },
+  palm: { position: 'absolute', zIndex: 0 },
+  page: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 6,
+    paddingBottom: 6,
+  },
+  archFrame: {
+    borderWidth: 1,
+    borderColor: colors.goldLineStrong,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    padding: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,253,246,0.5)',
   },
   badge: {
     position: 'absolute',
-    top: 22,
-    right: -12,
+    top: 14,
+    right: 10,
     backgroundColor: colors.saffron,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    transform: [{ rotate: '-4deg' }],
-    ...shadow,
+    borderRadius: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    transform: [{ rotate: '-3deg' }],
   },
-  chip: {
-    position: 'absolute',
-    bottom: 16,
-    left: -14,
-    maxWidth: 220,
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
+  bottom: { paddingHorizontal: 24, paddingTop: 4 },
+  ankhRow: {
     flexDirection: 'row-reverse',
     alignItems: 'center',
-    gap: 8,
-    ...shadow,
-  },
-  chipIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: colors.oliveSoft,
-    alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
+    gap: 10,
+    marginBottom: 12,
   },
-  content: { marginTop: 'auto', paddingHorizontal: 24, paddingTop: 26 },
-  dots: { flexDirection: 'row-reverse', gap: 6, marginBottom: 16 },
-  dot: { width: 8, height: 6, borderRadius: 3, backgroundColor: 'rgba(184,134,47,0.28)' },
-  dotOn: {
-    width: 26,
-    backgroundColor: colors.olive,
+  ankhLine: { width: 54, height: 1, backgroundColor: colors.goldLineStrong },
+  dots: { flexDirection: 'row-reverse', justifyContent: 'center', alignItems: 'center', gap: 6, marginBottom: 14 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.sand2 },
+  dotOn: { width: 26, backgroundColor: colors.olive },
+  cta: {
+    height: 58,
+    borderRadius: 26,
+    backgroundColor: colors.oliveDeep,
+    // السهم على الشمال زي التصميم، والنص في نص الزرار.
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
     borderWidth: 1,
-    borderColor: 'rgba(217,162,74,0.55)',
+    borderColor: 'rgba(217,162,74,0.45)',
   },
 });

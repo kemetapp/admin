@@ -9,7 +9,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '../components/AppText';
-import { Icon, type IconName } from '../components/Icon';
+import { Icon } from '../components/Icon';
 import { Lotus } from '../components/motifs';
 import { BackButton, PrimaryButton } from '../components/ui';
 import { AddressSheet } from '../components/AddressSheet';
@@ -20,27 +20,32 @@ import { colors, fonts } from '../theme';
 import { useCart } from '../state/CartContext';
 import { useAddress } from '../state/addresses';
 import { addOrder } from '../state/orders';
-import { setPayment, usePayment } from '../state/payment';
-
-const PAYMENTS: { id: string; label: string; icon: IconName; hint: string }[] = [
-  { id: 'cash', label: 'كاش عند الاستلام', icon: 'cash', hint: 'ادفع للمندوب لما يوصلك' },
-  { id: 'card', label: 'بطاقة بنكية', icon: 'card', hint: 'فيزا · ماستركارد · ميزة' },
-  { id: 'wallet', label: 'محفظة إلكترونية', icon: 'wallet', hint: 'فودافون كاش · إنستاباي' },
-];
+import { selectPayment, usePayment, usePayments } from '../state/payment';
+import { useSettings } from '../api/settings';
 
 const SLOTS = ['7:30 م', '8:00 م', '8:30 م', '9:00 م'];
 
 export default function CheckoutScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { total, count, lines, restaurantId, restaurantName, clearAll, clearPromo } = useCart();
+  const { total, count, subtotal, lines, restaurantId, restaurantName, clearAll, clearPromo } =
+    useCart();
   const address = useAddress();
   const payment = usePayment();
+  const paymentMethods = usePayments();
+  const settings = useSettings();
   const [when, setWhen] = useState<'now' | 'later'>('now');
   const [slot, setSlot] = useState(SLOTS[0]);
   const [note, setNote] = useState('');
   const [addressOpen, setAddressOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
+
+  // إعدادات اللوحة بتتحكم في المتجر والدفع والحد الأدنى
+  const closed = !settings.storeOpen || !settings.acceptingOrders;
+  const belowMin = subtotal < settings.minOrder;
+  const allowedPayments = paymentMethods.filter((method) =>
+    method.kind === 'cash' ? settings.payCash : settings.payWallet,
+  );
 
   const confirmOrder = () => {
     if (count === 0) return;
@@ -108,6 +113,22 @@ export default function CheckoutScreen() {
           </View>
         </View>
 
+        {closed ? (
+          <View style={styles.notice}>
+            <Icon name="clock" size={15} color={colors.clay} />
+            <AppText family="body" weight="600" size={11.5} color={colors.clay} lineHeight={18} style={{ flex: 1 }}>
+              المتجر مقفول حاليًا — تقدر تتصفّح، والطلب هيتاح لما يفتح.
+            </AppText>
+          </View>
+        ) : belowMin ? (
+          <View style={styles.notice}>
+            <Icon name="tag" size={15} color={colors.clay} />
+            <AppText family="body" weight="600" size={11.5} color={colors.clay} lineHeight={18} style={{ flex: 1 }}>
+              الحد الأدنى للطلب {settings.minOrder} ج.م — ناقصك {settings.minOrder - subtotal} ج.م.
+            </AppText>
+          </View>
+        ) : null}
+
         <SectionLabel title="عنوان التوصيل" first />
         <View style={styles.cardBlock}>
           <View style={styles.cardIcon}>
@@ -138,7 +159,7 @@ export default function CheckoutScreen() {
           </Pressable>
         </View>
 
-        <SectionLabel title="وقت التوصيل" />
+        <SectionLabel title={`وقت التوصيل · ~${settings.etaMinutes} دقيقة`} />
         <View style={styles.chipRow}>
           <Pressable
             onPress={() => setWhen('now')}
@@ -204,27 +225,31 @@ export default function CheckoutScreen() {
         ) : null}
 
         <SectionLabel title="طريقة الدفع" />
-        {PAYMENTS.map((option) => {
-          const active = payment === option.id;
+        {allowedPayments.map((method) => {
+          const active = payment.id === method.id;
           return (
             <Pressable
-              key={option.id}
-              testID={`payment-${option.id}`}
-              onPress={() => setPayment(option.id)}
+              key={method.id}
+              testID={`payment-${method.id}`}
+              onPress={() => selectPayment(method.id)}
               style={[styles.payOpt, active && styles.payOptOn]}
               accessibilityRole="button"
-              accessibilityLabel={option.label}
+              accessibilityLabel={method.label}
               accessibilityState={{ selected: active }}
             >
               <View style={styles.payIcon}>
-                <Icon name={option.icon} size={17} color={colors.olive} />
+                <Icon
+                  name={method.kind === 'cash' ? 'cash' : 'wallet'}
+                  size={17}
+                  color={colors.olive}
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <AppText family="body" weight="600" size={12.5} lineHeight={19}>
-                  {option.label}
+                  {method.label}
                 </AppText>
                 <AppText family="body" size={10.5} color={colors.muted} lineHeight={16} style={{ marginTop: 1 }}>
-                  {option.hint}
+                  {method.detail}
                 </AppText>
               </View>
               {active ? <Icon name="check" size={18} color={colors.olive} /> : null}
@@ -255,7 +280,7 @@ export default function CheckoutScreen() {
           label="أكد الطلب"
           price={`${total} ج.م`}
           onPress={confirmOrder}
-          disabled={placing}
+          disabled={placing || closed || belowMin}
         />
       </View>
 
@@ -290,6 +315,18 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 18,
     marginBottom: 9,
+  },
+  notice: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(180,86,47,0.3)',
+    backgroundColor: 'rgba(180,86,47,0.08)',
+    marginTop: 6,
   },
   cardBlock: {
     flexDirection: 'row-reverse',

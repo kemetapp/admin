@@ -11,24 +11,57 @@ import { useRouter } from 'expo-router';
 import { AppText } from '../components/AppText';
 import { AuthField } from '../components/AuthField';
 import { BackButton, PrimaryButton } from '../components/ui';
-import { Cartouche } from '../components/motifs';
+import { WingedScarab } from '../components/motifs';
 import { Icon } from '../components/Icon';
 import { Screen } from '../components/Screen';
 import { Sheet } from '../components/Sheet';
 import { colors, shadow } from '../theme';
-import { saveSession } from '../state/session';
+import { clearGuest, markGuest, saveSession } from '../state/session';
+import { authErrorMessage, isValidEgyptianPhone, signInWithPhone } from '../api/auth';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const [phone, setPhone] = useState('010 1234 5678');
-  const [password, setPassword] = useState('12345678');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [remember, setRemember] = useState(true);
   const [forgotOpen, setForgotOpen] = useState(false);
   const [resetPhone, setResetPhone] = useState('');
   const [sent, setSent] = useState(false);
 
-  const submit = () => {
-    void saveSession({ name: 'محمود النوبي', phone, memberSince: '2024' });
+  const submit = async () => {
+    if (busy) return;
+    setError(null);
+
+    if (!isValidEgyptianPhone(phone)) {
+      setError('اكتب رقم موبايل مصري صح — 11 رقم ويبدأ بـ010 أو 011 أو 012 أو 015.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('كلمة السر لازم 6 حروف على الأقل.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const user = await signInWithPhone({ phone, password });
+      await clearGuest();
+      await saveSession({
+        name: user.name,
+        phone: user.phone,
+        memberSince: String(new Date().getFullYear()),
+      });
+      router.replace('/(tabs)');
+    } catch (e) {
+      setError(authErrorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const browseAsGuest = () => {
+    void markGuest();
     router.replace('/(tabs)');
   };
 
@@ -46,10 +79,22 @@ export default function LoginScreen() {
         >
           <View style={styles.head}>
             <View style={styles.brand}>
-              <Cartouche size={28} />
-              <AppText family="display" weight="800" size={15} color={colors.olive} lineHeight={22}>
-                كيميت
-              </AppText>
+              <WingedScarab width={44} color={colors.goldDeep} />
+              <View>
+                <AppText
+                  family="display"
+                  weight="800"
+                  size={16}
+                  color={colors.oliveDeep}
+                  lineHeight={22}
+                  style={styles.wordmark}
+                >
+                  KEMET
+                </AppText>
+                <AppText family="body" size={8.5} color={colors.muted} style={styles.wordmarkSub}>
+                  DELIVERY APP
+                </AppText>
+              </View>
             </View>
             <BackButton onPress={() => router.replace('/onboarding')} />
           </View>
@@ -88,6 +133,14 @@ export default function LoginScreen() {
             />
           </View>
 
+          {error ? (
+            <View style={styles.errorBox}>
+              <AppText family="body" weight="600" size={11.5} color={colors.danger} lineHeight={18}>
+                {error}
+              </AppText>
+            </View>
+          ) : null}
+
           <View style={styles.row}>
             <Pressable
               onPress={() => setRemember((v) => !v)}
@@ -118,11 +171,18 @@ export default function LoginScreen() {
             </Pressable>
           </View>
 
-          <PrimaryButton label="دخول" onPress={submit} style={{ marginTop: 14 }} />
+          <PrimaryButton
+            label={busy ? 'بيتم الدخول…' : 'دخول'}
+            onPress={submit}
+            disabled={busy}
+            style={{ marginTop: 14 }}
+          />
 
           <Divider />
 
-          <SocialButton label="متابعة بحساب Google" onPress={submit} />
+          <AppText family="body" size={10.5} color={colors.muted} align="center" lineHeight={17}>
+            الدخول بحساب Google هيتضاف في تحديث قادم.
+          </AppText>
 
           <Pressable onPress={() => router.replace('/signup')} style={{ marginTop: 18 }} hitSlop={8}>
             <AppText family="body" size={11.5} color={colors.muted} align="center">
@@ -130,6 +190,18 @@ export default function LoginScreen() {
               <AppText family="body" weight="700" size={11.5} color={colors.olive}>
                 أنشئ حساب جديد
               </AppText>
+            </AppText>
+          </Pressable>
+
+          <Pressable
+            onPress={browseAsGuest}
+            accessibilityRole="button"
+            accessibilityLabel="تصفح كزائر"
+            style={{ marginTop: 12 }}
+            hitSlop={8}
+          >
+            <AppText family="body" weight="600" size={12} color={colors.muted} align="center">
+              تصفح كزائر
             </AppText>
           </Pressable>
         </ScrollView>
@@ -220,7 +292,9 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     minHeight: 44,
   },
-  brand: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
+  brand: { flexDirection: 'row-reverse', alignItems: 'center', gap: 9 },
+  wordmark: { letterSpacing: 2.4 },
+  wordmarkSub: { letterSpacing: 1.6, marginTop: -1 },
   hero: { marginTop: 26 },
   badge: {
     flexDirection: 'row-reverse',
@@ -240,6 +314,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: 2,
+  },
+  errorBox: {
+    backgroundColor: 'rgba(166,58,43,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(166,58,43,0.28)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 10,
   },
   remember: { flexDirection: 'row-reverse', alignItems: 'center', gap: 7 },
   sentIcon: {

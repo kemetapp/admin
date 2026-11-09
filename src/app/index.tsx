@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Redirect } from 'expo-router';
-import { getSession, isOnboarded } from '../state/session';
+import { getSession, isGuest, isOnboarded } from '../state/session';
 
 type Target = '/onboarding' | '/login' | '/(tabs)';
 
 /**
  * شاشة البداية: بتقرر فين يروح المستخدم بناءً على اللي محفوظ محليًا.
  * - عنده جلسة  → الرئيسية
+ * - دخل كزائر   → الرئيسية (يتصفّح من غير حساب)
  * - خلّص الأونبوردنج → تسجيل الدخول
  * - أول مرة  → الأونبوردنج
  */
@@ -19,6 +20,12 @@ export default function Index() {
       const session = await getSession();
       if (!alive) return;
       if (session) {
+        setTarget('/(tabs)');
+        return;
+      }
+      const guest = await isGuest();
+      if (!alive) return;
+      if (guest) {
         setTarget('/(tabs)');
         return;
       }

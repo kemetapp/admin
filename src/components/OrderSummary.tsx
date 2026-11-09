@@ -5,7 +5,7 @@ import { colors } from '../theme';
 import { useCart } from '../state/CartContext';
 
 export function OrderSummary({ style }: { style?: StyleProp<ViewStyle> }) {
-  const { subtotal, delivery, discount, total, promo } = useCart();
+  const { subtotal, delivery, discount, total, promo, tax } = useCart();
 
   return (
     <View style={[styles.sum, style]}>
@@ -25,6 +25,16 @@ export function OrderSummary({ style }: { style?: StyleProp<ViewStyle> }) {
           {delivery === 0 ? 'مجاني' : `${delivery} ج.م`}
         </AppText>
       </View>
+      {tax > 0 ? (
+        <View style={styles.row}>
+          <AppText family="body" size={12.5} color={colors.muted}>
+            الضريبة
+          </AppText>
+          <AppText family="body" weight="700" size={12.5}>
+            {tax} ج.م
+          </AppText>
+        </View>
+      ) : null}
       {discount > 0 ? (
         <View style={styles.row}>
           <AppText family="body" size={12.5} color={colors.muted}>

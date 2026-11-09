@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AppText } from '../components/AppText';
@@ -7,11 +7,13 @@ import { PromoCarousel } from '../components/PromoCarousel';
 import { ProductCard } from '../components/ProductCard';
 import { RestaurantBanner } from '../components/RestaurantBanner';
 import { Icon } from '../components/Icon';
-import { IconButton, SectionHeader } from '../components/ui';
+import { Chip, IconButton, SectionHeader } from '../components/ui';
 import { AddressSheet } from '../components/AddressSheet';
 import { Screen } from '../components/Screen';
 import { useRtlRail } from '../hooks/useRtlRail';
-import { categories, products, restaurants, trendingIds } from '../data/mock';
+import { trendingIds } from '../data/mock';
+import { useCatalog } from '../api/catalog';
+import { useSettings } from '../api/settings';
 import { food } from '../theme/images';
 import { colors } from '../theme';
 import { useAddress } from '../state/addresses';
@@ -22,6 +24,17 @@ export default function HomeScreen() {
   const address = useAddress();
   const unread = useUnreadCount();
   const [addressOpen, setAddressOpen] = useState(false);
+  const [sort, setSort] = useState<'all' | 'newest' | 'rating'>('all');
+  const { categories, products, restaurants, createdAtOf } = useCatalog();
+  const settings = useSettings();
+  const closed = !settings.storeOpen || !settings.acceptingOrders;
+
+  const restaurantList = useMemo(() => {
+    const list = [...restaurants];
+    if (sort === 'rating') list.sort((a, b) => b.rating - a.rating);
+    if (sort === 'newest') list.sort((a, b) => createdAtOf(b.id) - createdAtOf(a.id));
+    return list;
+  }, [restaurants, sort, createdAtOf]);
   const {
     setRef: catRailRef,
     onLayout: catRailLayout,
@@ -75,6 +88,22 @@ export default function HomeScreen() {
             {unread > 0 ? <View style={styles.bellDot} /> : null}
           </View>
         </View>
+
+        {closed ? (
+          <View style={styles.closedBar}>
+            <Icon name="clock" size={15} color={colors.clay} />
+            <AppText
+              family="body"
+              weight="600"
+              size={11.5}
+              color={colors.clay}
+              lineHeight={18}
+              style={{ flex: 1 }}
+            >
+              المتجر مقفول حاليًا — مواعيد العمل {settings.openTime} إلى {settings.closeTime}
+            </AppText>
+          </View>
+        ) : null}
 
         <Pressable
           accessibilityRole="button"
@@ -159,9 +188,14 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
 
-        <SectionHeader title="المطاعم" action="شوف الكل" onAction={() => router.push('/search')} />
+        <SectionHeader title="المطاعم" />
+        <View style={styles.restoFilters}>
+          <Chip label="الكل" active={sort === 'all'} onPress={() => setSort('all')} />
+          <Chip label="أحدث المطاعم" active={sort === 'newest'} onPress={() => setSort('newest')} />
+          <Chip label="أعلى تقييم" active={sort === 'rating'} onPress={() => setSort('rating')} />
+        </View>
         <View style={{ gap: 12 }}>
-          {restaurants.slice(0, 4).map((restaurant) => (
+          {restaurantList.map((restaurant) => (
             <RestaurantBanner
               key={restaurant.id}
               restaurant={restaurant}
@@ -209,6 +243,19 @@ const styles = StyleSheet.create({
     borderRightColor: colors.line,
   },
   catRail: { flexDirection: 'row-reverse', gap: 13, paddingBottom: 4 },
+  closedBar: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(180,86,47,0.3)',
+    backgroundColor: 'rgba(180,86,47,0.08)',
+    marginBottom: 12,
+  },
+  restoFilters: { flexDirection: 'row-reverse', gap: 8, marginBottom: 12 },
   cat: { width: 66 },
   prodRail: { flexDirection: 'row-reverse', gap: 12, paddingBottom: 4 },
   bellDot: {

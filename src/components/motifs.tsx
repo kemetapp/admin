@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, Ellipse, G, Path, Rect } from 'react-native-svg';
 import { AppText } from './AppText';
 import { colors, radius } from '../theme';
 
@@ -251,6 +251,219 @@ export function SheetHandle() {
         marginBottom: 14,
       }}
     />
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  الجعران المجنّح — شعار شاشات الافتتاح                                */
+/* ------------------------------------------------------------------ */
+export function WingedScarab({
+  width = 96,
+  color = colors.goldDeep,
+  opacity = 1,
+  style,
+}: {
+  width?: number;
+  color?: string;
+  opacity?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const height = Math.round((width * 44) / 120);
+  return (
+    <Svg
+      width={width}
+      height={height}
+      viewBox="0 0 120 44"
+      style={style}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <G fill={color} opacity={opacity}>
+        <Path d="M54 20C42 11 26 6 6 9c10 12 26 19 48 20z" />
+        <Path d="M54 26C44 31 30 35 12 37c8 8 22 8 42 1z" />
+        <Path d="M66 20c12-9 28-14 48-11-10 12-26 19-48 20z" />
+        <Path d="M66 26c10 5 24 9 42 11-8 8-22 8-42 1z" />
+        <Ellipse cx="60" cy="22" rx="6.5" ry="12" />
+        <Ellipse cx="60" cy="9" rx="4.5" ry="4" />
+        <Path
+          d="M57 6c-2-3-5-4-8-5M63 6c2-3 5-4 8-5"
+          stroke={color}
+          strokeWidth="1.3"
+          fill="none"
+          strokeLinecap="round"
+        />
+      </G>
+    </Svg>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  عنخ — فاصل بين النصوص                                              */
+/* ------------------------------------------------------------------ */
+export function Ankh({
+  size = 15,
+  color = colors.goldDeep,
+  style,
+}: {
+  size?: number;
+  color?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <Svg
+      width={size}
+      height={Math.round(size * 1.3)}
+      viewBox="0 0 24 31"
+      style={style}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Ellipse cx={12} cy={8.5} rx={5} ry={7} stroke={color} strokeWidth={2} fill="none" />
+      <Path
+        d="M12 15.5V29M4.5 18.5h15"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  عمود هيروغليفي — زخرفة على جانبي الشاشة                            */
+/* ------------------------------------------------------------------ */
+export function GlyphColumn({
+  height = 300,
+  color = colors.goldDeep,
+  opacity = 0.34,
+  style,
+}: {
+  height?: number;
+  color?: string;
+  opacity?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const width = Math.round((height * 20) / 240);
+  return (
+    <Svg
+      width={width}
+      height={height}
+      viewBox="0 0 20 240"
+      style={style}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <G fill={color} opacity={opacity}>
+        <Rect x={4} y={4} width={12} height={18} rx={6} />
+        <Circle cx={10} cy={36} r={6} />
+        <Path d="M10 50l7 12H3z" />
+        <Rect x={3} y={70} width={14} height={4} rx={2} />
+        <Rect x={3} y={79} width={14} height={4} rx={2} />
+        <Path
+          d="M3 93c4 0 4 8 8 8s4-8 8-8"
+          stroke={color}
+          strokeWidth={2.4}
+          fill="none"
+          strokeLinecap="round"
+        />
+        <Circle cx={10} cy={116} r={3} />
+        <Rect x={4} y={126} width={12} height={16} rx={3} />
+        <Path d="M10 150l6 10H4z" />
+        <Rect x={3} y={168} width={14} height={4} rx={2} />
+        <Circle cx={10} cy={184} r={6} fill="none" stroke={color} strokeWidth={2.4} />
+        <Rect x={4} y={198} width={12} height={18} rx={6} />
+      </G>
+    </Svg>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  شريط زخرفي أسفل الشاشة                                             */
+/* ------------------------------------------------------------------ */
+export function PatternBand({
+  height = 22,
+  color = colors.oliveDeep,
+  style,
+}: {
+  height?: number;
+  color?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const W = 360;
+  const teeth = Array.from({ length: 20 });
+  return (
+    <Svg
+      width="100%"
+      height={height}
+      viewBox={`0 0 ${W} ${height}`}
+      preserveAspectRatio="none"
+      style={style}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <Rect width={W} height={height} fill={color} />
+      {teeth.map((_, i) => (
+        <Path
+          key={i}
+          d={`M${i * 18 + 3} ${height} l6 -7 l6 7 z`}
+          fill="rgba(251,246,232,0.22)"
+        />
+      ))}
+    </Svg>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  سعف النخيل — زخرفة أركان شاشات الافتتاح                            */
+/* ------------------------------------------------------------------ */
+export function PalmFrond({
+  width = 76,
+  color = colors.olive,
+  opacity = 0.4,
+  mirrored = false,
+  style,
+}: {
+  width?: number;
+  color?: string;
+  opacity?: number;
+  mirrored?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const height = Math.round((width * 130) / 90);
+  const leaves = Array.from({ length: 7 });
+
+  return (
+    <Svg
+      width={width}
+      height={height}
+      viewBox="0 0 90 130"
+      style={[mirrored ? { transform: [{ scaleX: -1 }] } : null, style]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      <G opacity={opacity} stroke={color} fill="none" strokeLinecap="round">
+        <Path d="M10 122C26 96 44 62 68 22" strokeWidth={2.4} />
+        {leaves.map((_, i) => {
+          const t = i / (leaves.length - 1);
+          const px = 10 + t * 58;
+          const py = 122 - t * 100;
+          const len = 24 - t * 9;
+          return (
+            <React.Fragment key={i}>
+              <Path
+                d={`M${px} ${py}q${len * 0.65} ${-len * 0.15} ${len} ${-len * 0.8}`}
+                strokeWidth={2}
+              />
+              <Path
+                d={`M${px} ${py}q${-len * 0.65} ${-len * 0.15} ${-len} ${-len * 0.8}`}
+                strokeWidth={2}
+              />
+            </React.Fragment>
+          );
+        })}
+      </G>
+    </Svg>
   );
 }
 

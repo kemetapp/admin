@@ -9,7 +9,8 @@ import { Icon, type IconName } from '../components/Icon';
 import { GoldFrame, SheetHandle } from '../components/motifs';
 import { IconButton } from '../components/ui';
 import { itemsLabel } from '../utils/arabic';
-import { getRestaurant, orders } from '../data/mock';
+import { orders } from '../data/mock';
+import { useCatalog } from '../api/catalog';
 import { food } from '../theme/images';
 import { colors, shadow, shadowStrong } from '../theme';
 import { useLiveOrder } from '../state/orders';
@@ -27,6 +28,7 @@ export default function TrackingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const liveOrder = useLiveOrder() ?? orders[0];
+  const { getRestaurant } = useCatalog();
   const restaurant = getRestaurant(liveOrder.restaurantId);
   const eta = liveOrder.eta?.match(/\d+/)?.[0] ?? '18';
   const scheduled = Boolean(liveOrder.eta?.includes('م'));

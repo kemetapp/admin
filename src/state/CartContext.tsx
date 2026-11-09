@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { seedCart, type CartLine } from '../data/mock';
 import { loadJSON, saveJSON } from './storage';
+import { useSettings } from '../api/settings';
 
 type AddLineInput = Omit<CartLine, 'key'>;
 type SavedCart = { lines: CartLine[]; promo: string | null };
@@ -14,6 +15,10 @@ type CartContextValue = {
   delivery: number;
   discount: number;
   total: number;
+  /** ضريبة محسوبة من نسبة الضريبة في إعدادات اللوحة. */
+  tax: number;
+  /** أقل مبلغ للطلب — من الإعدادات. */
+  minOrder: number;
   promo: string | null;
   /** المطعم اللي السلة بتاعته — الطلب بيتقفل على مطعم واحد. */
   restaurantId: string | null;
@@ -31,10 +36,10 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-const DELIVERY_FEE = 15;
 const DISCOUNT_VALUE = 25;
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const settings = useSettings();
   const [lines, setLines] = useState<CartLine[]>(seedCart);
   const [promo, setPromo] = useState<string | null>('KEMET25');
   const [hydrated, setHydrated] = useState(false);
@@ -103,27 +108,43 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearAll = useCallback(() => setLines([]), []);
 
-  const applyPromo = useCallback((code: string) => {
-    const clean = code.trim().toUpperCase();
-    if (clean === 'KEMET25') {
-      setPromo('KEMET25');
-      return { ok: true, message: 'تم تطبيق خصم 25 ج.م' };
-    }
-    if (clean === 'ASWAN0') {
-      setPromo('ASWAN0');
-      return { ok: true, message: 'التوصيل بقى مجاني' };
-    }
-    return { ok: false, message: 'الكود مش صحيح' };
-  }, []);
+  const applyPromo = useCallback(
+    (code: string) => {
+      if (!settings.couponsEnabled) {
+        return { ok: false, message: 'الكوبونات مش مفعّلة حاليًا' };
+      }
+      const clean = code.trim().toUpperCase();
+      if (clean === 'KEMET25') {
+        setPromo('KEMET25');
+        return { ok: true, message: `تم تطبيق خصم ${DISCOUNT_VALUE} ج.م` };
+      }
+      if (clean === 'ASWAN0') {
+        setPromo('ASWAN0');
+        return { ok: true, message: 'التوصيل بقى مجاني' };
+      }
+      return { ok: false, message: 'الكود مش صحيح' };
+    },
+    [settings.couponsEnabled],
+  );
 
   const clearPromo = useCallback(() => setPromo(null), []);
 
   const value = useMemo<CartContextValue>(() => {
     const count = lines.reduce((sum, l) => sum + l.qty, 0);
     const subtotal = lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0);
-    const delivery = lines.length === 0 ? 0 : promo === 'ASWAN0' ? 0 : DELIVERY_FEE;
-    const discount = promo === 'KEMET25' && subtotal > 0 ? Math.min(DISCOUNT_VALUE, subtotal) : 0;
-    const total = Math.max(0, subtotal + delivery - discount);
+    const delivery =
+      lines.length === 0
+        ? 0
+        : promo === 'ASWAN0' ||
+            (settings.freeDeliveryOver > 0 && subtotal >= settings.freeDeliveryOver)
+          ? 0
+          : settings.deliveryFee;
+    const tax = Math.round((subtotal * settings.taxPercent) / 100);
+    const discount =
+      promo === 'KEMET25' && subtotal > 0
+        ? Math.min(DISCOUNT_VALUE, settings.maxDiscount, subtotal)
+        : 0;
+    const total = Math.max(0, subtotal + delivery + tax - discount);
     const first = lines[0];
     return {
       lines,
@@ -131,6 +152,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       subtotal,
       delivery,
       discount,
+      tax,
+      minOrder: settings.minOrder,
       total,
       promo,
       restaurantId: first ? first.restaurantId : null,
@@ -147,6 +170,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [
     lines,
     promo,
+    settings,
     addLine,
     replaceCart,
     increment,
