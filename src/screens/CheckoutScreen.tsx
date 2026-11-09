@@ -1,0 +1,390 @@
+import React, { useState } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppText } from '../components/AppText';
+import { Icon, type IconName } from '../components/Icon';
+import { Lotus } from '../components/motifs';
+import { BackButton, PrimaryButton } from '../components/ui';
+import { AddressSheet } from '../components/AddressSheet';
+import { OrderSummary } from '../components/OrderSummary';
+import { Screen } from '../components/Screen';
+import { itemsLabel } from '../utils/arabic';
+import { colors, fonts } from '../theme';
+import { useCart } from '../state/CartContext';
+import { useAddress } from '../state/addresses';
+import { addOrder } from '../state/orders';
+import { setPayment, usePayment } from '../state/payment';
+
+const PAYMENTS: { id: string; label: string; icon: IconName; hint: string }[] = [
+  { id: 'cash', label: 'كاش عند الاستلام', icon: 'cash', hint: 'ادفع للمندوب لما يوصلك' },
+  { id: 'card', label: 'بطاقة بنكية', icon: 'card', hint: 'فيزا · ماستركارد · ميزة' },
+  { id: 'wallet', label: 'محفظة إلكترونية', icon: 'wallet', hint: 'فودافون كاش · إنستاباي' },
+];
+
+const SLOTS = ['7:30 م', '8:00 م', '8:30 م', '9:00 م'];
+
+export default function CheckoutScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { total, count, lines, restaurantId, restaurantName, clearAll, clearPromo } = useCart();
+  const address = useAddress();
+  const payment = usePayment();
+  const [when, setWhen] = useState<'now' | 'later'>('now');
+  const [slot, setSlot] = useState(SLOTS[0]);
+  const [note, setNote] = useState('');
+  const [addressOpen, setAddressOpen] = useState(false);
+  const [placing, setPlacing] = useState(false);
+
+  const confirmOrder = () => {
+    if (count === 0) return;
+    const first = lines[0];
+    setPlacing(true);
+    addOrder({
+      id: `o-${Date.now()}`,
+      restaurantId: restaurantId ?? first.restaurantId,
+      restaurantName: restaurantName ?? first.restaurantName,
+      itemsCount: count,
+      total,
+      status: 'live',
+      when: when === 'now' ? 'في أقرب وقت' : `متوقع ${slot}`,
+      eta: when === 'now' ? '20–30 د' : slot,
+      image: first.image,
+    });
+    clearAll();
+    clearPromo();
+    router.replace('/tracking');
+  };
+
+  if (count === 0 && !placing) {
+    return (
+      <Screen>
+        <View style={styles.head}>
+          <View style={styles.headStart}>
+            <BackButton />
+            <AppText family="display" weight="800" size={20}>
+              إتمام الطلب
+            </AppText>
+          </View>
+        </View>
+        <View style={styles.empty}>
+          <Icon name="cart" size={40} color={colors.sand2} />
+          <AppText family="display" weight="700" size={16} align="center" style={{ marginTop: 12 }}>
+            السلة فاضية
+          </AppText>
+          <AppText family="body" size={12} color={colors.muted} align="center" style={{ marginTop: 4 }}>
+            اختار أكلة من مطاعم أسوان الأول وبعدين كمّل الطلب.
+          </AppText>
+          <Pressable
+            onPress={() => router.replace('/(tabs)')}
+            accessibilityRole="button"
+            accessibilityLabel="اتفضل المطاعم"
+            style={({ pressed }) => [styles.emptyBtn, pressed && { opacity: 0.85 }]}
+          >
+            <AppText family="body" weight="700" size={12.5} color={colors.white}>
+              اتفرج على المطاعم
+            </AppText>
+          </Pressable>
+        </View>
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.head}>
+          <View style={styles.headStart}>
+            <BackButton />
+            <AppText family="display" weight="800" size={20}>
+              إتمام الطلب
+            </AppText>
+          </View>
+        </View>
+
+        <SectionLabel title="عنوان التوصيل" first />
+        <View style={styles.cardBlock}>
+          <View style={styles.cardIcon}>
+            <Icon name="pin" size={18} color={colors.olive} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <AppText family="body" weight="700" size={13} lineHeight={20}>
+              {address.label}
+            </AppText>
+            <AppText family="body" size={11} color={colors.muted} lineHeight={17} style={{ marginTop: 2 }}>
+              {address.detail}
+            </AppText>
+            {address.note ? (
+              <AppText family="body" size={10.5} color={colors.muted} lineHeight={16}>
+                {address.note}
+              </AppText>
+            ) : null}
+          </View>
+          <Pressable
+            hitSlop={8}
+            onPress={() => setAddressOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="تغيير عنوان التوصيل"
+          >
+            <AppText family="body" weight="700" size={11.5} color={colors.olive}>
+              تغيير
+            </AppText>
+          </Pressable>
+        </View>
+
+        <SectionLabel title="وقت التوصيل" />
+        <View style={styles.chipRow}>
+          <Pressable
+            onPress={() => setWhen('now')}
+            style={[styles.chip, when === 'now' && styles.chipOn]}
+            accessibilityRole="button"
+            accessibilityLabel="التوصيل في أقرب وقت"
+            accessibilityState={{ selected: when === 'now' }}
+          >
+            <Icon name="clock" size={13} color={when === 'now' ? colors.olive : colors.muted} />
+            <AppText
+              family="body"
+              weight="600"
+              size={11.5}
+              color={when === 'now' ? colors.olive : colors.muted}
+            >
+              في أقرب وقت
+            </AppText>
+          </Pressable>
+          <Pressable
+            onPress={() => setWhen('later')}
+            style={[styles.chip, when === 'later' && styles.chipOn]}
+            accessibilityRole="button"
+            accessibilityLabel="تحديد وقت للتوصيل"
+            accessibilityState={{ selected: when === 'later' }}
+          >
+            <Icon name="clock" size={13} color={when === 'later' ? colors.olive : colors.muted} />
+            <AppText
+              family="body"
+              weight="600"
+              size={11.5}
+              color={when === 'later' ? colors.olive : colors.muted}
+            >
+              حدد وقت
+            </AppText>
+          </Pressable>
+        </View>
+        {when === 'later' ? (
+          <View style={styles.timeRow}>
+            {SLOTS.map((item) => {
+              const active = slot === item;
+              return (
+                <Pressable
+                  key={item}
+                  testID={`slot-${item}`}
+                  onPress={() => setSlot(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`التوصيل الساعة ${item}`}
+                  accessibilityState={{ selected: active }}
+                  style={[styles.timeChip, active && styles.timeChipOn]}
+                >
+                  <AppText
+                    family="body"
+                    weight="600"
+                    size={11}
+                    color={active ? colors.white : colors.olive}
+                  >
+                    {item}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+
+        <SectionLabel title="طريقة الدفع" />
+        {PAYMENTS.map((option) => {
+          const active = payment === option.id;
+          return (
+            <Pressable
+              key={option.id}
+              testID={`payment-${option.id}`}
+              onPress={() => setPayment(option.id)}
+              style={[styles.payOpt, active && styles.payOptOn]}
+              accessibilityRole="button"
+              accessibilityLabel={option.label}
+              accessibilityState={{ selected: active }}
+            >
+              <View style={styles.payIcon}>
+                <Icon name={option.icon} size={17} color={colors.olive} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <AppText family="body" weight="600" size={12.5} lineHeight={19}>
+                  {option.label}
+                </AppText>
+                <AppText family="body" size={10.5} color={colors.muted} lineHeight={16} style={{ marginTop: 1 }}>
+                  {option.hint}
+                </AppText>
+              </View>
+              {active ? <Icon name="check" size={18} color={colors.olive} /> : null}
+            </Pressable>
+          );
+        })}
+
+        <SectionLabel title="ملاحظات للمندوب" />
+        <TextInput
+          value={note}
+          onChangeText={setNote}
+          placeholder="مثال: اتصل عند الوصول"
+          placeholderTextColor={colors.muted}
+          style={styles.noteField}
+          textAlign="right"
+          accessibilityLabel="ملاحظات للمندوب"
+        />
+
+        <OrderSummary />
+        <AppText family="body" size={10.5} color={colors.muted} align="center" style={{ marginTop: 9 }}>
+          {count} {itemsLabel(count)} · الأسعار شاملة الضريبة
+        </AppText>
+        <View style={{ height: 10 }} />
+      </ScrollView>
+
+      <View style={[styles.ctaBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <PrimaryButton
+          label="أكد الطلب"
+          price={`${total} ج.م`}
+          onPress={confirmOrder}
+          disabled={placing}
+        />
+      </View>
+
+      <AddressSheet visible={addressOpen} onClose={() => setAddressOpen(false)} />
+    </Screen>
+  );
+}
+
+function SectionLabel({ title, first = false }: { title: string; first?: boolean }) {
+  return (
+    <View style={[styles.secLabel, first && { marginTop: 0 }]}>
+      <Lotus size={13} />
+      <AppText family="display" weight="700" size={13.5}>
+        {title}
+      </AppText>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  scroll: { paddingHorizontal: 20, paddingBottom: 12 },
+  head: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
+  headStart: { flexDirection: 'row-reverse', alignItems: 'center', gap: 10 },
+  secLabel: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 18,
+    marginBottom: 9,
+  },
+  cardBlock: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 11,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 18,
+    padding: 14,
+  },
+  cardIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: colors.oliveSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  chipRow: { flexDirection: 'row-reverse', gap: 8 },
+  chip: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    backgroundColor: colors.card,
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  chipOn: { borderColor: colors.olive, backgroundColor: colors.oliveSoft },
+  timeRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 8 },
+  timeChip: {
+    flex: 1,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: colors.goldSoft,
+    borderWidth: 1,
+    borderColor: colors.goldLine,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timeChipOn: { backgroundColor: colors.olive, borderColor: colors.olive },
+  payOpt: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 11,
+    padding: 13,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    backgroundColor: colors.card,
+    marginBottom: 9,
+  },
+  payOptOn: { borderColor: colors.olive, backgroundColor: colors.oliveSoft },
+  payIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  noteField: {
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.card,
+    paddingHorizontal: 14,
+    fontFamily: fonts.body,
+    fontSize: 12.5,
+    color: colors.ink,
+  },
+  ctaBar: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    backgroundColor: colors.cream,
+    borderTopWidth: 1,
+    borderTopColor: colors.lineSoft,
+  },
+  empty: { alignItems: 'center', paddingVertical: 56, paddingHorizontal: 24 },
+  emptyBtn: {
+    marginTop: 18,
+    height: 46,
+    paddingHorizontal: 22,
+    borderRadius: 14,
+    backgroundColor: colors.olive,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
