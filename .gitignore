@@ -21,3 +21,9 @@ Thumbs.db
 
 # typescript
 *.tsbuildinfo
+
+# local caches / build artifacts
+.tmp/
+**/.tmp/
+functions/node_modules/
+functions/lib/
