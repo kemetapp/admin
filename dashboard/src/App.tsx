@@ -1,24 +1,19 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { errorMessage, signIn, signOutUser, useAuth } from './useAuth';
-import { Btn, Icon } from './components/ui';
-import { Sidebar, TAB_TITLE, Topbar, type Tab } from './components/layout';
+import { Btn } from './components/ui';
+import { Sidebar, Topbar, type Tab } from './components/layout';
 import { useCollectionDocs } from './lib/db';
+import { ActivityLogPage } from './pages/ActivityLog';
+import { CouriersPage } from './pages/Couriers';
 import { Dashboard } from './pages/Dashboard';
+import { FinancePage } from './pages/Finance';
+import { MessagesPage } from './pages/Messages';
 import { Orders } from './pages/Orders';
-import { SettingsPage } from './pages/Settings';
-import { Users } from './pages/Users';
+import { ReportsPage } from './pages/Reports';
 import { CategoriesPage, ProductsPage, PromosPage, RestaurantsPage } from './pages/Resources';
-
-const IMPLEMENTED: Tab[] = [
-  'overview',
-  'orders',
-  'products',
-  'categories',
-  'promos',
-  'restaurants',
-  'users',
-  'settings',
-];
+import { SettingsPage } from './pages/Settings';
+import { SupportPage } from './pages/Support';
+import { Users } from './pages/Users';
 
 export function App() {
   const { user, profile, loading } = useAuth();
@@ -60,44 +55,25 @@ export function App() {
       />
 
       <main className="main">
-        <Topbar
-          search={search}
-          onSearch={setSearch}
-          liveOrders={liveOrders}
-          onTab={setTab}
-        />
+        <Topbar search={search} onSearch={setSearch} liveOrders={liveOrders} onTab={setTab} />
 
         <div className="content">
           {tab === 'overview' ? <Dashboard search={search} orders={orders.rows} /> : null}
           {tab === 'orders' ? <Orders /> : null}
+          {tab === 'restaurants' ? <RestaurantsPage /> : null}
           {tab === 'products' ? <ProductsPage /> : null}
           {tab === 'categories' ? <CategoriesPage /> : null}
           {tab === 'promos' ? <PromosPage /> : null}
-          {tab === 'restaurants' ? <RestaurantsPage /> : null}
           {tab === 'users' ? <Users /> : null}
+          {tab === 'couriers' ? <CouriersPage /> : null}
+          {tab === 'finance' ? <FinancePage /> : null}
+          {tab === 'reports' ? <ReportsPage /> : null}
+          {tab === 'messages' ? <MessagesPage /> : null}
+          {tab === 'support' ? <SupportPage /> : null}
+          {tab === 'activity' ? <ActivityLogPage /> : null}
           {tab === 'settings' ? <SettingsPage /> : null}
-          {IMPLEMENTED.includes(tab) ? null : <Soon label={TAB_TITLE[tab]} />}
         </div>
       </main>
-    </div>
-  );
-}
-
-function Soon({ label }: { label: string }) {
-  return (
-    <div className="panel">
-      <div className="panel-body">
-        <div className="soon">
-          <div className="soon-icon">
-            <Icon name="content" size={26} />
-          </div>
-          <h3>{label}</h3>
-          <p>
-            الشاشة دي لسه تحت التنفيذ. كل الأقسام التانية شغالة بالكامل — الطلبات، المطاعم،
-            المنيو، الفئات، العروض، والعملاء.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }

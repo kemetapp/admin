@@ -125,8 +125,22 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // إعدادات التطبيق — قراءة للجميع (التطبيق بيقراها)، كتابة للأدمن
+    // الإعدادات + الرسائل + التذاكر — قراءة للجميع، كتابة للأدمن فقط
     match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /messages/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /tickets/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // المندوبين والطلبات الجديدة من التطبيق
+    match /couriers/{id} {
       allow read: if true;
       allow write: if isAdmin();
     }
