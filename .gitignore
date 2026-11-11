@@ -27,3 +27,7 @@ Thumbs.db
 **/.tmp/
 functions/node_modules/
 functions/lib/
+
+# local tooling
+.tools/
+**/.buildtmp/
