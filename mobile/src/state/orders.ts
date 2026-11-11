@@ -2,7 +2,7 @@ import { orders as seedOrders, type Order } from '../data/mock';
 import { createStore } from './createStore';
 
 /** الطلبات اللي المستخدم عملها من التطبيق (بتحفظ محليًا). */
-export const ordersStore = createStore<Order[]>('orders', []);
+export const ordersStore = createStore<Order[]>('orders-clean', []);
 
 export function useOrders(): Order[] {
   const created = ordersStore.use();

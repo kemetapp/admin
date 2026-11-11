@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PageHeader, Section } from '../components/layout';
 import { Btn, Field, Icon, ToastHost, useToast } from '../components/ui';
+import { clearCollection, bulkPatch } from '../lib/db';
 import {
   DEFAULT_SETTINGS,
   saveAppSettings,
@@ -13,6 +14,21 @@ export function SettingsPage() {
   const { toast, show } = useToast();
   const [form, setForm] = useState<AppSettings | null>(null);
   const [busy, setBusy] = useState(false);
+  const [wiping, setWiping] = useState<string | null>(null);
+
+  const wipe = async (name: string, label: string) => {
+    if (wiping) return;
+    if (!window.confirm(`حذف كل «${label}» نهائيًا؟`)) return;
+    setWiping(name);
+    try {
+      const count = await clearCollection(name);
+      show(`اتحذف ${count} مستند من ${label}`);
+    } catch {
+      show('الحذف فشل — تأكد إنك أدمن.', 'error');
+    } finally {
+      setWiping(null);
+    }
+  };
 
   useEffect(() => {
     if (form === null && !loading) setForm(settings);
@@ -222,6 +238,67 @@ export function SettingsPage() {
               onChange={(e) => patch('maxDiscount', Number(e.target.value))}
             />
           </Field>
+          <Toggle
+            label="إظهار «أكواد الخصم» في حساب العميل"
+            note="لما يتقفل، الخانة مش بتظهر في التطبيق خالص"
+            checked={value.showCouponsInAccount}
+            onChange={(next) => patch('showCouponsInAccount', next)}
+          />
+          <Toggle
+            label="إظهار «طرق الدفع» في حساب العميل"
+            note="العميل بيدير محافظه من حسابه"
+            checked={value.showPaymentsInAccount}
+            onChange={(next) => patch('showPaymentsInAccount', next)}
+          />
+          <Toggle
+            label="تفعيل محفظة العميل"
+            note="مقفولة افتراضيًا ورصيدها 0 لحد التفعيل"
+            checked={value.walletEnabled}
+            onChange={(next) => patch('walletEnabled', next)}
+          />
+        </Section>
+
+        <Section title="منطقة الخطر — تصفير البيانات">
+          <p className="hint">
+            الحذف نهائي. خد نسخة احتياطية قبل أي عملية. الطلبات والعملاء مش متضمنين —
+            بيتمسحوا من تبويبهم.
+          </p>
+          <div className="danger-grid">
+            <Btn
+              variant="danger"
+              size="sm"
+              onClick={async () => {
+                if (!window.confirm('تصفير تقييمات كل المطاعم لصفر؟')) return;
+                try {
+                  const count = await bulkPatch('restaurants', { rating: 0, reviews: 0 });
+                  show(`اتصفّرت تقييمات ${count} مطعم`);
+                } catch {
+                  show('التصفير فشل', 'error');
+                }
+              }}
+            >
+              تصفير التقييمات
+            </Btn>
+            {[
+              { name: 'orders', label: 'الطلبات' },
+              { name: 'products', label: 'المنيو' },
+              { name: 'promos', label: 'العروض' },
+              { name: 'categories', label: 'الفئات' },
+              { name: 'restaurants', label: 'المطاعم' },
+              { name: 'zones', label: 'مناطق التوصيل' },
+              { name: 'couriers', label: 'المندوبين' },
+            ].map((item) => (
+              <Btn
+                key={item.name}
+                variant="danger"
+                size="sm"
+                onClick={() => void wipe(item.name, item.label)}
+                disabled={wiping === item.name}
+              >
+                {wiping === item.name ? 'بيتم الحذف…' : `حذف ${item.label}`}
+              </Btn>
+            ))}
+          </div>
         </Section>
       </div>
 

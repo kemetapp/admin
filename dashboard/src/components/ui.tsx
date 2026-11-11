@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 
 /* ------------------------------------------------------------------ */
 /*  أيقونات — SVG خطّي 24×24 بنفس لغة المرجع                            */
@@ -32,7 +32,10 @@ export type IconName =
   | 'star'
   | 'menu'
   | 'clock'
-  | 'message';
+  | 'message'
+  | 'pin'
+  | 'refresh'
+  | 'lock';
 
 const PATHS: Record<IconName, ReactNode> = {
   overview: (
@@ -193,6 +196,24 @@ const PATHS: Record<IconName, ReactNode> = {
       <circle cx="15.4" cy="11.5" r=".9" fill="currentColor" stroke="none" />
     </>
   ),
+  pin: (
+    <>
+      <path d="M12 21s-7-6.2-7-11a7 7 0 1 1 14 0c0 4.8-7 11-7 11z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </>
+  ),
+  refresh: (
+    <>
+      <path d="M20 12a8 8 0 1 1-2.6-5.9" />
+      <path d="M20 4v4.5h-4.5" />
+    </>
+  ),
+  lock: (
+    <>
+      <rect x="4.5" y="10.5" width="15" height="10" rx="2.5" />
+      <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
+    </>
+  ),
 };
 
 export function Icon({
@@ -233,6 +254,7 @@ type BtnProps = {
   block?: boolean;
   disabled?: boolean;
   type?: 'button' | 'submit';
+  style?: CSSProperties;
 };
 
 export function Btn({
@@ -243,13 +265,20 @@ export function Btn({
   block = false,
   disabled = false,
   type = 'button',
+  style,
 }: BtnProps) {
   const classes = ['btn', `btn-${variant}`];
   if (size === 'sm') classes.push('btn-sm');
   if (block) classes.push('btn-block');
 
   return (
-    <button className={classes.join(' ')} onClick={onClick} disabled={disabled} type={type}>
+    <button
+      className={classes.join(' ')}
+      onClick={onClick}
+      disabled={disabled}
+      type={type}
+      style={style}
+    >
       {children}
     </button>
   );

@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react';
 import heroImage from '../../../mobile/assets/food/grill.jpg';
 import { Icon, type IconName } from './ui';
+import { useChatUnread } from '../lib/chatUnread';
 
 export type Tab =
   | 'overview'
   | 'restaurants'
   | 'users'
   | 'orders'
+  | 'maps'
   | 'couriers'
   | 'finance'
   | 'reports'
@@ -23,6 +25,7 @@ export const NAV: { id: Tab; label: string; icon: IconName }[] = [
   { id: 'restaurants', label: 'المطاعم', icon: 'restaurants' },
   { id: 'users', label: 'العملاء', icon: 'users' },
   { id: 'orders', label: 'الطلبات', icon: 'orders' },
+  { id: 'maps', label: 'الخرائط والتوصيل', icon: 'pin' },
   { id: 'couriers', label: 'المندوبين', icon: 'courier' },
   { id: 'finance', label: 'المعاملات المالية', icon: 'wallet' },
   { id: 'reports', label: 'التقارير والتحليلات', icon: 'chart' },
@@ -40,6 +43,7 @@ export const TAB_TITLE: Record<Tab, string> = {
   restaurants: 'المطاعم',
   users: 'العملاء',
   orders: 'الطلبات',
+  maps: 'الخرائط والتوصيل',
   couriers: 'المندوبين',
   finance: 'المعاملات المالية',
   reports: 'التقارير والتحليلات',
@@ -69,6 +73,8 @@ export function Sidebar({
   collapsed: boolean;
   onToggle: () => void;
 }) {
+  const chatUnread = useChatUnread();
+
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="side-top">
@@ -104,13 +110,19 @@ export function Sidebar({
             {collapsed ? null : (
               <>
                 <span>{item.label}</span>
-                <Icon name="chevronLeft" size={12} />
+                {item.id === 'messages' && chatUnread > 0 ? (
+                  <em className="nav-badge">{chatUnread}</em>
+                ) : (
+                  <Icon name="chevronLeft" size={12} />
+                )}
               </>
             )}
+            {collapsed && item.id === 'messages' && chatUnread > 0 ? (
+              <i className="nav-badge-dot" aria-hidden />
+            ) : null}
           </button>
         ))}
       </nav>
-
       {collapsed ? null : (
         <div className="side-art" aria-hidden>
           <svg viewBox="0 0 240 120" width="100%" height="100%">
@@ -263,6 +275,22 @@ export function Hero() {
   );
 }
 
+/** فاصل لوتس رفيع — زخرفة فرعونية حديثة بين العنوان والمحتوى. */
+export function GlyphRule() {
+  return (
+    <div className="glyph-rule" aria-hidden>
+      <svg width="34" height="13" viewBox="0 0 34 13" fill="none">
+        <g stroke="currentColor" strokeWidth="1" strokeLinecap="round">
+          <path d="M17 2.2c1.9 2.5 1.9 5.3 0 7.6-1.9-2.3-1.9-5.1 0-7.6z" />
+          <path d="M17 9.8c-2.7-.6-4.7-2.3-5.7-4.5 2.7.2 4.9 1.8 5.7 4.5z" />
+          <path d="M17 9.8c2.7-.6 4.7-2.3 5.7-4.5-2.7.2-4.9 1.8-5.7 4.5z" />
+          <path d="M10.5 11.2h13" />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
 export function PageHeader({
   title,
   note,
@@ -279,6 +307,7 @@ export function PageHeader({
         {note ? <p>{note}</p> : null}
       </div>
       {actions ? <div className="page-actions">{actions}</div> : null}
+      <GlyphRule />
     </div>
   );
 }

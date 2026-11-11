@@ -2,6 +2,7 @@ import React from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import { AppText } from '../components/AppText';
 import { ContactRow } from '../components/ContactRow';
+import { DirectSupport } from '../components/DirectSupport';
 import { Lotus } from '../components/motifs';
 import { PageShell } from '../components/PageShell';
 import { colors } from '../theme';
@@ -35,6 +36,8 @@ export default function HelpScreen() {
       title="المساعدة والدعم"
       subtitle={`${settings.storeName} في أسوان · بنرد من ${settings.openTime} لـ ${settings.closeTime}`}
     >
+      <DirectSupport />
+
       <View style={styles.secHead}>
         <Lotus size={13} />
         <AppText family="display" weight="700" size={13.5}>

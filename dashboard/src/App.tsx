@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useMemo, useState, type FormEvent } from 'react';
 import { errorMessage, signIn, signOutUser, useAuth } from './useAuth';
 import { Btn } from './components/ui';
 import { Sidebar, Topbar, type Tab } from './components/layout';
@@ -7,6 +7,11 @@ import { ActivityLogPage } from './pages/ActivityLog';
 import { CouriersPage } from './pages/Couriers';
 import { Dashboard } from './pages/Dashboard';
 import { FinancePage } from './pages/Finance';
+
+/** الخريطة محمّلة عند الطلب — عشان أي مشكلة في MapLibre متوقفش اللوحة. */
+const MapPage = lazy(() =>
+  import('./pages/MapPage').then((module) => ({ default: module.MapPage })),
+);
 import { MessagesPage } from './pages/Messages';
 import { Orders } from './pages/Orders';
 import { ReportsPage } from './pages/Reports';
@@ -60,6 +65,11 @@ export function App() {
         <div className="content">
           {tab === 'overview' ? <Dashboard search={search} orders={orders.rows} /> : null}
           {tab === 'orders' ? <Orders /> : null}
+          {tab === 'maps' ? (
+            <Suspense fallback={<div className="empty">بيتم تحميل الخريطة…</div>}>
+              <MapPage />
+            </Suspense>
+          ) : null}
           {tab === 'restaurants' ? <RestaurantsPage /> : null}
           {tab === 'products' ? <ProductsPage /> : null}
           {tab === 'categories' ? <CategoriesPage /> : null}

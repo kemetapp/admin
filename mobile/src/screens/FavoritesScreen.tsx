@@ -10,10 +10,12 @@ import { useCatalog } from '../api/catalog';
 import { food } from '../theme/images';
 import { colors } from '../theme';
 import { toggleFavorite, useFavorites } from '../state/favorites';
+import { useSessionState } from '../state/session';
 
 export default function FavoritesScreen() {
   const router = useRouter();
   const favorites = useFavorites();
+  const { signedIn } = useSessionState();
   const { restaurants } = useCatalog();
   const list = restaurants.filter((restaurant) => favorites.includes(restaurant.id));
 
@@ -101,7 +103,13 @@ export default function FavoritesScreen() {
                 hitSlop={10}
                 accessibilityRole="button"
                 accessibilityLabel={`إزالة ${restaurant.name} من المفضلة`}
-                onPress={() => toggleFavorite(restaurant.id)}
+                onPress={() => {
+                  if (!signedIn) {
+                    router.push('/login');
+                    return;
+                  }
+                  toggleFavorite(restaurant.id);
+                }}
                 style={({ pressed }) => [styles.heart, pressed && { opacity: 0.6 }]}
               >
                 <Icon name="heart" size={18} color={colors.clay} filled />

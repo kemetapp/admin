@@ -82,6 +82,9 @@ settings/app
 
 **Firebase Console → Firestore Database → تبويب Rules → الصق → Publish**
 
+> **القواعد المعتمدة النهائية:** انسخ الملف [`firestore.rules`](../firestore.rules) في جذر المشروع — ده المصدر الرسمي.
+> البلوك اللي تحت نسخة أقدم، للرجوع بس.
+
 ```
 rules_version = '2';
 service cloud.firestore {

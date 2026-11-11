@@ -2,10 +2,6 @@ import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import {
-  categories as seedCategories,
-  products as seedProducts,
-  promos as seedPromos,
-  restaurants as seedRestaurants,
   type Category,
   type Product,
   type Promo,
@@ -58,10 +54,10 @@ const FALLBACK_PRODUCT: Product = {
  * بتحل محلها. والحقول المخفية من لوحة التحكم (`active: false`) مش بتظهر.
  */
 let state: CatalogState = {
-  categories: seedCategories,
-  restaurants: seedRestaurants,
-  products: seedProducts,
-  promos: seedPromos,
+  categories: [],
+  restaurants: [],
+  products: [],
+  promos: [],
   restaurantDates: {},
   ready: false,
 };
@@ -92,11 +88,18 @@ function start() {
   onSnapshot(
     collection(db, 'categories'),
     (snap) => {
-      if (snap.empty) return;
-      const rows = snap.docs.map((doc) => ({
-        ...(doc.data() as Omit<CategoryRow, 'id'>),
-        id: doc.id,
-      }));
+      const rows = snap.docs
+        .map((doc) => {
+          const data = doc.data() as Omit<CategoryRow, 'id'>;
+          return {
+            ...data,
+            id: doc.id,
+            // الفئات اللي بتتضاف من اللوحة بصور مرفوعة ممكن ميكونش لها مفتاح صورة محلي.
+            image: data.image ?? 'grill',
+            label: data.label ?? doc.id,
+          } as CategoryRow;
+        })
+        .filter((row) => row.active !== false);
       rows.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       update({ categories: rows });
     },
@@ -106,7 +109,6 @@ function start() {
   onSnapshot(
     collection(db, 'restaurants'),
     (snap) => {
-      if (snap.empty) return;
       const dates: Record<string, number> = {};
       const rows = snap.docs
         .map((doc) => {
@@ -124,7 +126,6 @@ function start() {
   onSnapshot(
     collection(db, 'products'),
     (snap) => {
-      if (snap.empty) return;
       update({
         products: snap.docs.map((doc) => ({
           ...(doc.data() as Omit<Product, 'id'>),
@@ -138,7 +139,6 @@ function start() {
   onSnapshot(
     collection(db, 'promos'),
     (snap) => {
-      if (snap.empty) return;
       const rows = snap.docs
         .map((doc) => ({ ...(doc.data() as Omit<PromoRow, 'id'>), id: doc.id }))
         .filter((row) => row.active !== false);

@@ -27,7 +27,21 @@ export function ProductCard({
       style={({ pressed }) => [styles.card, pressed && { opacity: 0.9 }]}
     >
       <View style={styles.imageWrap}>
-        <Image source={food[product.image]} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
+        {product.imageUrl ? (
+          <Image
+            source={{ uri: product.imageUrl }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={0}
+          />
+        ) : (
+          <Image
+            source={food[product.image]}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={200}
+          />
+        )}
         {rank ? (
           <View style={styles.rank}>
             <AppText family="body" weight="700" size={10} color="#3A2A05">

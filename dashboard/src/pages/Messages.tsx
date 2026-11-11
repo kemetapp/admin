@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { PageHeader, Section } from '../components/layout';
 import { Btn, Empty, Field, Icon, ToastHost, useToast } from '../components/ui';
 import { removeDoc, saveDoc, useCollectionDocs } from '../lib/db';
+import { ChatsPanel } from './ChatsPanel';
 
 const text = (value: unknown) => (typeof value === 'string' ? value : '');
 const millis = (value: unknown) =>
@@ -16,6 +17,7 @@ const AUDIENCES = [
 export function MessagesPage() {
   const messages = useCollectionDocs('messages');
   const { toast, show } = useToast();
+  const [view, setView] = useState<'broadcast' | 'chats'>('broadcast');
 
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -61,8 +63,31 @@ export function MessagesPage() {
 
   return (
     <>
-      <PageHeader title="الرسائل والإشعارات" note={`${sent.length} رسالة مرسلة`} />
+      <PageHeader
+        title="الرسائل والإشعارات"
+        note={
+          view === 'broadcast'
+            ? `${sent.length} رسالة مرسلة`
+            : 'محادثات العملاء من التطبيق'
+        }
+        actions={
+          <div className="seg">
+            <button
+              className={view === 'broadcast' ? 'on' : ''}
+              onClick={() => setView('broadcast')}
+            >
+              التنبيهات
+            </button>
+            <button className={view === 'chats' ? 'on' : ''} onClick={() => setView('chats')}>
+              محادثات العملاء
+            </button>
+          </div>
+        }
+      />
 
+      {view === 'chats' ? <ChatsPanel /> : null}
+
+      {view === 'broadcast' ? (
       <div className="duo">
         <Section title="إرسال تنبيه جديد">
           <Field label="عنوان الرسالة">
@@ -121,6 +146,7 @@ export function MessagesPage() {
           )}
         </Section>
       </div>
+      ) : null}
 
       <ToastHost toast={toast} />
     </>

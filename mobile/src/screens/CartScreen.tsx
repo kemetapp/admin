@@ -18,10 +18,12 @@ import { Screen } from '../components/Screen';
 import { food } from '../theme/images';
 import { colors, fonts } from '../theme';
 import { useCart } from '../state/CartContext';
+import { useSessionState } from '../state/session';
 
 export default function CartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { signedIn } = useSessionState();
   const {
     lines,
     total,
@@ -272,9 +274,9 @@ export default function CartScreen() {
 
       <View style={[styles.ctaBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <PrimaryButton
-          label="روح للدفع"
-          price={`${total} ج.م`}
-          onPress={() => router.push('/checkout')}
+          label={signedIn ? 'روح للدفع' : 'سجّل دخولك عشان تطلب'}
+          price={signedIn ? `${total} ج.م` : undefined}
+          onPress={() => router.push(signedIn ? '/checkout' : '/login')}
         />
       </View>
     </Screen>

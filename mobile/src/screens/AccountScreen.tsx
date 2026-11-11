@@ -1,18 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
 import { AppText } from '../components/AppText';
 import { Icon, type IconName } from '../components/Icon';
 import { Cartouche, Lotus, WingedSun } from '../components/motifs';
 import { Screen } from '../components/Screen';
-import { coupons } from '../data/mock';
 import { colors, shadow } from '../theme';
-import { clearGuest, clearSession, getSession, type Session } from '../state/session';
-import { seedCatalog } from '../api/seed';
-import { authErrorMessage } from '../api/auth';
-import { auth, db } from '../lib/firebase';
+import { clearGuest, clearSession, getSession, useSessionState, type Session } from '../state/session';
+import { useSettings } from '../api/settings';
 import { useAddress } from '../state/addresses';
 import { useFavorites } from '../state/favorites';
 import { useOrders } from '../state/orders';
@@ -33,6 +28,7 @@ const MENU: MenuItem[] = [
   { id: 'coupons', label: 'أكواد الخصم', icon: 'tag', href: '/account/coupons' },
   { id: 'payments', label: 'طرق الدفع', icon: 'wallet', href: '/account/payments' },
   { id: 'help', label: 'المساعدة والدعم', icon: 'message', href: '/account/help' },
+  { id: 'community', label: 'مجتمع كيميت', icon: 'star', href: '/community' },
   { id: 'about', label: 'عن كيميت', icon: 'star', href: '/account/about' },
 ];
 
@@ -45,32 +41,16 @@ export default function AccountScreen() {
   const unread = useUnreadCount();
   const payment = usePayment();
   const { promo } = useCart();
-  const [seeding, setSeeding] = useState(false);
-  const [seedMessage, setSeedMessage] = useState<string | null>(null);
-  const [cloud, setCloud] = useState<'checking' | 'signed-out' | 'customer' | 'admin'>('checking');
+  const { guest } = useSessionState();
+  const settings = useSettings();
+  const isGuest = !session && guest;
 
-  // حالة الحساب في Firebase — عشان أداة التهيئة تقولّك بالظبط إيه الناقص.
-  useEffect(() => {
-    let alive = true;
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!alive) return;
-      if (!user) {
-        setCloud('signed-out');
-        return;
-      }
-      try {
-        const snap = await getDoc(doc(db, 'users', user.uid));
-        const role = (snap.data() as { role?: string } | undefined)?.role;
-        if (alive) setCloud(role === 'admin' ? 'admin' : 'customer');
-      } catch {
-        if (alive) setCloud('customer');
-      }
-    });
-    return () => {
-      alive = false;
-      unsubscribe();
-    };
-  }, []);
+  /** الخصومات وطرق الدفع بتظهر بس لما تتفعّل من لوحة التحكم. */
+  const menu = MENU.filter((item) => {
+    if (item.id === 'coupons') return settings.showCouponsInAccount;
+    if (item.id === 'payments') return settings.showPaymentsInAccount;
+    return true;
+  });
 
   useEffect(() => {
     let alive = true;
@@ -82,10 +62,12 @@ export default function AccountScreen() {
     };
   }, []);
 
-  const name = session?.name?.trim() || 'محمود النوبي';
-  const phone = session?.phone?.trim() || '010 1234 5678';
-  const since = session?.memberSince || '2024';
-  const delivered = orders.filter((order) => order.status === 'delivered').length;
+  const name = session?.name?.trim() || 'زائر';
+  const phone = session?.phone?.trim() || 'مفيش حساب';
+  const since = session?.memberSince || '';
+  const walletBalance = 0;
+  /** نقاط الولاء — مفيش نظام نقاط مفعّل لسه، فالقيمة صفر. */
+  const loyaltyPoints = 0;
 
   const hintFor = (id: string): string | undefined => {
     switch (id) {
@@ -108,22 +90,6 @@ export default function AccountScreen() {
     router.replace('/login');
   };
 
-  const runSeed = async () => {
-    if (seeding) return;
-    setSeeding(true);
-    setSeedMessage(null);
-    try {
-      const result = await seedCatalog();
-      setSeedMessage(
-        `تم — ${result.restaurants} مطعم · ${result.products} صنف · ${result.categories} قسم · ${result.promos} عرض`,
-      );
-    } catch (e) {
-      setSeedMessage(authErrorMessage(e));
-    } finally {
-      setSeeding(false);
-    }
-  };
-
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -142,41 +108,98 @@ export default function AccountScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.profile}>
-          <LinearGoldFrame />
-          <WingedSun
-            width={92}
-            color="rgba(217,162,74,0.45)"
-            style={{ position: 'absolute', top: 10, left: 12 }}
-          />
-
-          <View style={styles.avatar}>
-            <Cartouche size={54} letter={name.charAt(0)} />
-          </View>
-
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <AppText family="display" weight="800" size={18} lineHeight={26} numberOfLines={1}>
-              {name}
+        {isGuest ? (
+          <View style={styles.guestCard}>
+            <LinearGoldFrame />
+            <View style={styles.guestIcon}>
+              <Icon name="user" size={24} color={colors.olive} />
+            </View>
+            <AppText family="display" weight="800" size={17} align="center">
+              تتصفح كزائر
             </AppText>
-            <AppText family="body" size={11.5} color={colors.muted} lineHeight={18} style={{ marginTop: 2 }}>
-              {phone}
+            <AppText
+              family="body"
+              size={11.5}
+              color={colors.muted}
+              align="center"
+              lineHeight={19}
+              style={{ marginTop: 4 }}
+            >
+              مفيش حساب مسجّل على الجهاز. سجّل دخولك عشان تطلب وتتابع طلباتك وتحفظ عناوينك.
             </AppText>
-            <View style={styles.member}>
-              <Lotus size={11} color={colors.goldDeep} />
-              <AppText family="body" weight="600" size={10.5} color="#7A5B12">
-                عضو كيميت · من {since}
-              </AppText>
+
+            <View style={styles.guestActions}>
+              <Pressable
+                onPress={() => router.push('/login')}
+                accessibilityRole="button"
+                accessibilityLabel="تسجيل الدخول"
+                style={({ pressed }) => [styles.guestPrimary, pressed && { opacity: 0.9 }]}
+              >
+                <AppText family="body" weight="700" size={12.5} color={colors.white}>
+                  تسجيل الدخول
+                </AppText>
+              </Pressable>
+              <Pressable
+                onPress={() => router.push('/signup')}
+                accessibilityRole="button"
+                accessibilityLabel="إنشاء حساب جديد"
+                style={({ pressed }) => [styles.guestGhost, pressed && { opacity: 0.9 }]}
+              >
+                <AppText family="body" weight="700" size={12.5} color={colors.olive}>
+                  إنشاء حساب
+                </AppText>
+              </Pressable>
             </View>
           </View>
-        </View>
+        ) : (
+          <>
+            <View style={styles.profile}>
+              <LinearGoldFrame />
+              <WingedSun
+                width={92}
+                color="rgba(217,162,74,0.45)"
+                style={{ position: 'absolute', top: 10, left: 12 }}
+              />
 
-        <View style={styles.stats}>
-          <Stat value={String(orders.length)} label="طلب" />
-          <View style={styles.statDivider} />
-          <Stat value={String(delivered * 40 + 20)} label="نقطة" />
-          <View style={styles.statDivider} />
-          <Stat value={String(coupons.length)} label="كوبونات" />
-        </View>
+              <View style={styles.avatar}>
+                <Cartouche size={54} letter={name.charAt(0)} />
+              </View>
+
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <AppText family="display" weight="800" size={18} lineHeight={26} numberOfLines={1}>
+                  {name}
+                </AppText>
+                <AppText
+                  family="body"
+                  size={11.5}
+                  color={colors.muted}
+                  lineHeight={18}
+                  style={{ marginTop: 2 }}
+                >
+                  {phone}
+                </AppText>
+                <View style={styles.member}>
+                  <Lotus size={11} color={colors.goldDeep} />
+                  <AppText family="body" weight="600" size={10.5} color="#7A5B12">
+                    عضو كيميت · من {since}
+                  </AppText>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.stats}>
+              <Stat value={String(orders.length)} label="طلباتي" />
+              <View style={styles.statDivider} />
+              <Stat value={String(loyaltyPoints)} label="نقاط الولاء" />
+              <View style={styles.statDivider} />
+              <Stat
+                value={settings.walletEnabled ? String(walletBalance) : '0'}
+                label="محفظتي"
+                locked={!settings.walletEnabled}
+              />
+            </View>
+          </>
+        )}
 
         <View style={styles.secHead}>
           <Lotus size={13} />
@@ -186,7 +209,7 @@ export default function AccountScreen() {
         </View>
 
         <View style={styles.menu}>
-          {MENU.map((item, index) => {
+          {menu.map((item, index) => {
             const hint = hintFor(item.id);
             return (
               <Pressable
@@ -197,7 +220,7 @@ export default function AccountScreen() {
                 onPress={() => router.push(item.href)}
                 style={({ pressed }) => [
                   styles.menuRow,
-                  index !== MENU.length - 1 && styles.menuRowBorder,
+                  index !== menu.length - 1 && styles.menuRowBorder,
                   pressed && { opacity: 0.7 },
                 ]}
               >
@@ -236,59 +259,6 @@ export default function AccountScreen() {
           </AppText>
         </Pressable>
 
-        {__DEV__ ? (
-          <View style={styles.devBox}>
-            <AppText family="body" weight="600" size={11} color={colors.muted}>
-              أدوات المطوّر
-            </AppText>
-
-            <AppText
-              family="body"
-              weight="600"
-              size={10.5}
-              lineHeight={18}
-              color={
-                cloud === 'admin'
-                  ? colors.success
-                  : cloud === 'checking'
-                    ? colors.muted
-                    : colors.danger
-              }
-            >
-              {cloud === 'checking'
-                ? 'بيفحص حساب Firebase…'
-                : cloud === 'signed-out'
-                  ? 'مش مسجّل دخول في Firebase — سجّل دخول الأول.'
-                  : cloud === 'customer'
-                    ? 'الحساب دوره customer — افتح Firestore → users وغيّر role لـ admin.'
-                    : 'أدمن ✓ — جاهز للتهيئة.'}
-            </AppText>
-
-            <Pressable
-              onPress={runSeed}
-              disabled={cloud !== 'admin' || seeding}
-              accessibilityRole="button"
-              accessibilityLabel="تهيئة بيانات العرض في Firestore"
-              accessibilityState={{ disabled: cloud !== 'admin' || seeding }}
-              style={({ pressed }) => [
-                styles.devBtn,
-                (cloud !== 'admin' || seeding) && { opacity: 0.45 },
-                pressed && { opacity: 0.8 },
-              ]}
-            >
-              <AppText family="body" weight="700" size={11.5} color={colors.olive}>
-                {seeding ? 'بيتم الرفع…' : 'تهيئة بيانات العرض'}
-              </AppText>
-            </Pressable>
-
-            {seedMessage ? (
-              <AppText family="body" size={10.5} color={colors.muted} lineHeight={17}>
-                {seedMessage}
-              </AppText>
-            ) : null}
-          </View>
-        ) : null}
-
         <View style={styles.footer}>
           <View style={styles.goldLine} />
           <AppText family="body" size={10.5} color={colors.muted} align="center">
@@ -310,12 +280,30 @@ function LinearGoldFrame() {
   return <View pointerEvents="none" style={styles.innerFrame} />;
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
+function Stat({
+  value,
+  label,
+  locked = false,
+}: {
+  value: string;
+  label: string;
+  locked?: boolean;
+}) {
   return (
     <View style={styles.stat}>
-      <AppText family="display" weight="800" size={19} color={colors.olive} align="center" lineHeight={26}>
-        {value}
-      </AppText>
+      <View style={styles.statValueRow}>
+        {locked ? <Icon name="lock" size={11} color={colors.muted} /> : null}
+        <AppText
+          family="display"
+          weight="800"
+          size={19}
+          color={locked ? colors.muted : colors.olive}
+          align="center"
+          lineHeight={26}
+        >
+          {value}
+        </AppText>
+      </View>
       <AppText family="body" size={10.5} color={colors.muted} align="center" lineHeight={17}>
         {label}
       </AppText>
@@ -324,6 +312,52 @@ function Stat({ value, label }: { value: string; label: string }) {
 }
 
 const styles = StyleSheet.create({
+  guestCard: {
+    position: 'relative',
+    alignItems: 'center',
+    paddingVertical: 22,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.goldLine,
+    backgroundColor: colors.goldSoft,
+    gap: 2,
+  },
+  guestIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.oliveSoft,
+    borderWidth: 1,
+    borderColor: colors.goldLine,
+    marginBottom: 8,
+  },
+  guestActions: {
+    flexDirection: 'row-reverse',
+    gap: 8,
+    marginTop: 14,
+    alignSelf: 'stretch',
+  },
+  guestPrimary: {
+    flex: 1,
+    height: 44,
+    borderRadius: 13,
+    backgroundColor: colors.olive,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guestGhost: {
+    flex: 1,
+    height: 44,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: colors.goldLine,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   scroll: { paddingHorizontal: 20, paddingBottom: 16 },
   head: {
     flexDirection: 'row-reverse',
@@ -400,6 +434,7 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   stat: { flex: 1, alignItems: 'center' },
+  statValueRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   statDivider: { width: 1, height: 30, backgroundColor: colors.line },
   secHead: {
     flexDirection: 'row-reverse',

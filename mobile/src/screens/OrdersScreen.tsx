@@ -8,14 +8,15 @@ import { Screen } from '../components/Screen';
 import { itemsLabel } from '../utils/arabic';
 import { food } from '../theme/images';
 import { colors } from '../theme';
-import { useOrders } from '../state/orders';
+import { useAuthUid, useMyOrders } from '../api/orders';
 
 type Filter = 'live' | 'past';
 type OrderSort = 'new' | 'old';
 
 export default function OrdersScreen() {
   const router = useRouter();
-  const orders = useOrders();
+  const uid = useAuthUid();
+  const { orders } = useMyOrders(uid);
   const [filter, setFilter] = useState<Filter>('live');
   const [sort, setSort] = useState<OrderSort>('new');
 

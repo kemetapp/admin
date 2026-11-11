@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { AppText } from '../components/AppText';
 import { Icon } from '../components/Icon';
 import { AuthField } from '../components/AuthField';
@@ -14,23 +15,24 @@ import {
   useAddress,
   useAddresses,
 } from '../state/addresses';
+import { useSessionState } from '../state/session';
 
 export default function AddressesScreen() {
+  const router = useRouter();
   const addresses = useAddresses();
   const current = useAddress();
+  const { signedIn } = useSessionState();
   const [adding, setAdding] = useState(false);
   const [label, setLabel] = useState('');
   const [detail, setDetail] = useState('');
-  const [note, setNote] = useState('');
 
   const canSave = label.trim().length > 0 && detail.trim().length > 0;
 
   const save = () => {
-    if (!canSave) return;
-    addAddress({ label: label.trim(), detail: detail.trim(), note: note.trim() || undefined });
+    if (!canSave || !signedIn) return;
+    addAddress({ label: label.trim(), detail: detail.trim() });
     setLabel('');
     setDetail('');
-    setNote('');
     setAdding(false);
   };
 
@@ -110,18 +112,18 @@ export default function AddressesScreen() {
 
       <Hairline style={{ marginVertical: 20 }} />
 
-      {adding ? (
-        <View>
-          <View style={styles.secHead}>
-            <Lotus size={13} />
-            <AppText family="display" weight="700" size={13.5}>
-              عنوان جديد
-            </AppText>
-          </View>
+      {signedIn ? (
+        adding ? (
+          <View>
+            <View style={styles.secHead}>
+              <Lotus size={13} />
+              <AppText family="display" weight="700" size={13.5}>
+                عنوان جديد
+              </AppText>
+            </View>
 
           <AuthField label="اسم العنوان" icon="home" value={label} onChangeText={setLabel} placeholder="مثال: البيت، الشغل" />
           <AuthField label="العنوان بالتفصيل" icon="pin" value={detail} onChangeText={setDetail} placeholder="الشارع، رقم العمارة، الدور" />
-          <AuthField label="ملاحظات للمندوب (اختياري)" icon="message" value={note} onChangeText={setNote} placeholder="جرس، علامة مميزة…" />
 
           <PrimaryButton label="احفظ العنوان" onPress={save} disabled={!canSave} style={{ marginTop: 6 }} />
 
@@ -149,7 +151,29 @@ export default function AddressesScreen() {
             ضيف عنوان جديد
           </AppText>
         </Pressable>
+        )
+      ) : (
+        <View style={styles.guestNote}>
+          <Icon name="lock" size={14} color={colors.clay} />
+          <AppText family="body" weight="600" size={11} color={colors.clay} lineHeight={18} style={{ flex: 1 }}>
+            سجّل دخولك عشان تضيف عنوان توصيل وتختاره من الخريطة.
+          </AppText>
+        </View>
       )}
+
+      {signedIn ? (
+        <Pressable
+          onPress={() => router.push('/address-choice?mode=other')}
+          accessibilityRole="button"
+          accessibilityLabel="اختيار الموقع على الخريطة"
+          style={({ pressed }) => [styles.mapBtn, pressed && { opacity: 0.85 }]}
+        >
+          <Icon name="pin" size={16} color={colors.white} />
+          <AppText family="body" weight="700" size={12.5} color={colors.white}>
+            اختر الموقع على الخريطة
+          </AppText>
+        </Pressable>
+      ) : null}
     </PageShell>
   );
 }
@@ -217,5 +241,25 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: colors.sand2,
     backgroundColor: colors.goldSoft,
+  },
+  mapBtn: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    height: 50,
+    borderRadius: 15,
+    backgroundColor: colors.olive,
+    marginTop: 10,
+  },
+  guestNote: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 7,
+    padding: 11,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(180,86,47,0.3)',
+    backgroundColor: 'rgba(180,86,47,0.08)',
   },
 });

@@ -1,0 +1,215 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && userDoc().role == 'admin';
+    }
+
+    function isRestaurant() {
+      return isSignedIn() && userDoc().role == 'restaurant';
+    }
+
+    function isCourier() {
+      return isSignedIn() && userDoc().role == 'courier';
+    }
+
+    // المستخدم بيقرا ويعدّل ملفه بس، والأدمن بيشوف الكل
+    // وممنوع أي عميل يرقّي نفسه لأدمن (role بيتغيّر من لوحة التحكم فقط)
+    match /users/{uid} {
+      allow read:   if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if isSignedIn() && request.auth.uid == uid
+                    && request.resource.data.role == 'customer';
+      allow update: if isSignedIn()
+                    && ((request.auth.uid == uid
+                         && request.resource.data.role == resource.data.role)
+                        || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // الكتالوج: قراءة للجميع، كتابة للأدمن فقط
+    match /categories/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /restaurants/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+
+      match /activity/{eventId} {
+        allow read, write: if isAdmin();
+      }
+    }
+    match /products/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /promos/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // الإعدادات + الرسائل + التذاكر — قراءة للجميع، كتابة للأدمن فقط
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /messages/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /tickets/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /couriers/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // مناطق التوصيل المرسومة من لوحة التحكم — التطبيق بيقراها للتحقق من النطاق
+    match /zones/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // مجتمع كيميت — اقتراحات العملاء مع تصويت
+    match /suggestions/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.title is string
+                    && request.resource.data.title.size() >= 4
+                    && request.resource.data.title.size() <= 120;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes']);
+      allow delete: if isAdmin();
+    }
+
+    // سجل حركات المخزون (زيادة/خصم يدوي من اللوحة)
+    match /stock_movements/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // تتبّع المندوب الحي — قراءة عامة (شاشة التتبع)، كتابة للمندوب/الأدمن
+    match /tracking/{orderId} {
+      allow read: if true;
+      allow write: if isAdmin() || isCourier();
+    }
+
+    /*
+     * الطلبات:
+     * - الإنشاء للعميل المسجّل فقط (userId = uid) — الزائر بيتفرج لكن مايطلبش.
+     * - قراءة مستند واحد بالمعرّف مسموحة عشان شاشة التتبع تشتغل.
+     * - قائمة الطلبات: الأدمن يشوف الكل، المطعم يشوف طلبات مطعمه،
+     *   والمندوب يشوف الطلبات الجاهزة + الطلبات المعيّنة له.
+     * - التعديل: الأدمن للكل، المطعم لوقت التجهيز/الحالة فقط،
+     *   والمندوب لاستلام/تسليم الطلب المعيّن له فقط.
+     */
+    function validOrder(data) {
+      return data.status == 'pending'
+        && data.number is number && data.number >= 1001
+        && data.userId is string && data.userId.size() >= 6
+        && data.customerId == data.userId
+        && data.restaurantId is string
+        && data.items is list
+        && data.itemsCount is number
+        && data.total is number;
+    }
+
+    match /orders/{id} {
+      allow get:    if true;
+      allow list:   if isAdmin()
+                    || (isSignedIn()
+                        && resource.data.userId == request.auth.uid)
+                    || (isRestaurant()
+                        && resource.data.restaurantId == userDoc().restaurantId)
+                    || (isCourier()
+                        && (resource.data.status == 'preparing'
+                            || resource.data.courierId == userDoc().courierId));
+      allow create: if isAdmin()
+                    || (isSignedIn()
+                        && validOrder(request.resource.data)
+                        && request.resource.data.userId == request.auth.uid);
+      allow update: if isAdmin()
+                    || (isRestaurant()
+                        && resource.data.restaurantId == userDoc().restaurantId
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['status', 'prepMinutes', 'prepStartedAt', 'statusHistory'])
+                        && request.resource.data.status == 'preparing')
+                    || (isCourier()
+                        && (resource.data.courierId == userDoc().courierId
+                            || (resource.data.status == 'preparing'
+                                && resource.data.courierId == ''))
+                        && request.resource.data.courierId == userDoc().courierId
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['status', 'courierId', 'courierName', 'courierPhone',
+                                       'courierAssignedAt', 'statusHistory'])
+                        && request.resource.data.status in ['out_for_delivery', 'delivered']);
+      allow delete: if isAdmin();
+    }
+
+    // عدّاد أرقام الطلبات — بيزيد خطوة واحدة كل طلب، وأول رقم 1001
+    match /counters/orders {
+      allow get:    if true;
+      allow create: if isSignedIn() && request.resource.data.value == 1001;
+      allow update: if isSignedIn()
+                    && request.resource.data.value == resource.data.value + 1
+                    && request.resource.data.value >= 1001;
+      allow delete: if isAdmin();
+    }
+
+    /*
+     * المحادثات:
+     * - التطبيق بيفتح محادثة معرّفها = هوية العميل، والزائر معندوش auth.
+     * - get مسموح بالمعرّف، والقائمة للأدمن فقط.
+     */
+    function validChat(data) {
+      return data.customerId is string
+        && data.name is string
+        && data.phone is string;
+    }
+
+    match /chats/{chatId} {
+      allow get:    if true;
+      allow list:   if isAdmin();
+      allow create: if validChat(request.resource.data)
+                    && request.resource.data.customerId == chatId;
+      allow update: if validChat(request.resource.data);
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read:   if true;
+        allow create: if request.resource.data.text is string
+                      && request.resource.data.text.size() > 0
+                      && request.resource.data.text.size() <= 1000
+                      && (request.resource.data.sender == 'customer' || isAdmin());
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // التقييمات: قراءة عامة عشان متوسط المطعم يتحسب، وكتابة بتقييم 1..5
+    match /ratings/{orderId} {
+      allow read:   if true;
+      allow create: if request.resource.data.orderId == orderId
+                    && request.resource.data.restaurantId is string
+                    && request.resource.data.rating is number
+                    && request.resource.data.rating >= 1
+                    && request.resource.data.rating <= 5;
+      allow update: if request.resource.data.orderId == orderId
+                    && request.resource.data.restaurantId is string
+                    && request.resource.data.rating is number
+                    && request.resource.data.rating >= 1
+                    && request.resource.data.rating <= 5;
+      allow delete: if isAdmin();
+    }
+  }
+}

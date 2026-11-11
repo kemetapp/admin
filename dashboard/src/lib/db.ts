@@ -13,13 +13,14 @@ import { db } from '../firebase';
 
 export type Doc = { id: string } & Record<string, unknown>;
 
-/** اشتراك لحظي في مجموعة كاملة. */
-export function useCollectionDocs(name: string) {
+/** اشتراك لحظي في مجموعة كاملة. `nonce` بيعيد الاشتراك لما يتغيّر (زر تحديث). */
+export function useCollectionDocs(name: string, nonce = 0) {
   const [rows, setRows] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoading(true);
     const unsubscribe = onSnapshot(
       collection(db, name),
       (snap) => {
@@ -33,9 +34,48 @@ export function useCollectionDocs(name: string) {
       },
     );
     return unsubscribe;
-  }, [name]);
+  }, [name, nonce]);
 
   return { rows, loading, error };
+}
+
+/** بتفضّي مجموعة كاملة (حذف نهائي) — للتصفير قبل التشغيل. */
+export async function clearCollection(name: string): Promise<number> {
+  const { getDocs, writeBatch } = await import('firebase/firestore');
+  const snapshot = await getDocs(collection(db, name));
+  let deleted = 0;
+  const docs = snapshot.docs;
+
+  for (let index = 0; index < docs.length; index += 400) {
+    const batch = writeBatch(db);
+    docs.slice(index, index + 400).forEach((item) => {
+      batch.delete(item.ref);
+      deleted += 1;
+    });
+    await batch.commit();
+  }
+  return deleted;
+}
+
+/** تحديث نفس الحقول على كل مستندات مجموعة (مثال: تصفير التقييمات). */
+export async function bulkPatch(
+  name: string,
+  patch: Record<string, unknown>,
+): Promise<number> {
+  const { getDocs, writeBatch, doc: docRef } = await import('firebase/firestore');
+  const snapshot = await getDocs(collection(db, name));
+  const docs = snapshot.docs;
+  let updated = 0;
+
+  for (let index = 0; index < docs.length; index += 400) {
+    const batch = writeBatch(db);
+    docs.slice(index, index + 400).forEach((item) => {
+      batch.update(docRef(db, name, item.id), patch);
+      updated += 1;
+    });
+    await batch.commit();
+  }
+  return updated;
 }
 
 /** اشتراك لحظي في مستند واحد. */

@@ -34,6 +34,13 @@ export type AppSettings = {
 
   couponsEnabled: boolean;
   maxDiscount: number;
+
+  /** إظهار «أكواد الخصم» في حساب العميل — يتفعّل من لوحة التحكم فقط. */
+  showCouponsInAccount: boolean;
+  /** إظهار «طرق الدفع» في حساب العميل — يتفعّل من لوحة التحكم فقط. */
+  showPaymentsInAccount: boolean;
+  /** محفظة العميل — مقفولة والرصيد صفر لحد ما تتفعّل من لوحة التحكم. */
+  walletEnabled: boolean;
 };
 
 /** نفس القيم الافتراضية اللي في لوحة التحكم — التطبيق بيشتغل بيها لو الإعدادات لسه مش متظبطة. */
@@ -65,6 +72,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
   couponsEnabled: true,
   maxDiscount: 50,
+
+  showCouponsInAccount: false,
+  showPaymentsInAccount: false,
+  walletEnabled: false,
 };
 
 let state: AppSettings = DEFAULT_SETTINGS;

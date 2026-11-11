@@ -2,9 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * تخزين محلي بسيط (AsyncStorage على الموبايل / localStorage على الويب).
- * كل المفاتيح بادئتها `kemet:v1:` عشان نسهّل مسح بيانات النسخة لو احتجنا.
+ * كل المفاتيح بادئتها `kemet:v2:` — تغيير الرقم بيمسح بيانات الإصدار القديم
+ * تلقائيًا، فالعميل الجديد بيبدأ من الصفر.
  */
-const PREFIX = 'kemet:v1:';
+const PREFIX = 'kemet:v2:';
 
 export async function loadJSON<T>(key: string): Promise<T | null> {
   try {

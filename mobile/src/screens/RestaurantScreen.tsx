@@ -17,6 +17,7 @@ import { food } from '../theme/images';
 import { colors, shadow } from '../theme';
 import { useCart } from '../state/CartContext';
 import { toggleFavorite, useFavorites } from '../state/favorites';
+import { useSessionState } from '../state/session';
 
 export default function RestaurantScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -28,6 +29,7 @@ export default function RestaurantScreen() {
   const [tab, setTab] = useState(restaurant.menuTabs[0]);
   const { count, total, restaurantId, restaurantName } = useCart();
   const favorites = useFavorites();
+  const { signedIn } = useSessionState();
   const isFavorite = favorites.includes(restaurant.id);
   const conflict = count > 0 && restaurantId !== null && restaurantId !== restaurant.id;
   const {
@@ -61,7 +63,13 @@ export default function RestaurantScreen() {
               color={isFavorite ? colors.saffron : colors.white}
               filled={isFavorite}
               accessibilityLabel={isFavorite ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
-              onPress={() => toggleFavorite(restaurant.id)}
+              onPress={() => {
+                if (!signedIn) {
+                  router.push('/login');
+                  return;
+                }
+                toggleFavorite(restaurant.id);
+              }}
             />
           </View>
           <View style={styles.heroInfo}>

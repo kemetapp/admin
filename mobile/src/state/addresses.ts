@@ -8,7 +8,7 @@ import { createStore } from './createStore';
 export const addressListStore = createStore<Address[]>('addresses', seedAddresses);
 
 /** العنوان المختار حاليًا للتوصيل. */
-export const addressSelectedStore = createStore<string>('address', seedAddresses[0].id);
+export const addressSelectedStore = createStore<string>('address', '');
 
 /** بنستخدمه لو المستخدم شال كل العناوين — عشان الشاشات متقعش. */
 const FALLBACK_ADDRESS: Address = {
@@ -31,7 +31,14 @@ export function selectAddress(id: string) {
   addressSelectedStore.set(id);
 }
 
-export function addAddress(input: { label: string; detail: string; note?: string }): string {
+export function addAddress(input: {
+  label: string;
+  detail: string;
+  note?: string;
+  lat?: number;
+  lng?: number;
+  placeName?: string;
+}): string {
   const id = `addr-${Date.now()}`;
   addressListStore.set((prev) => [...prev, { id, ...input }]);
   addressSelectedStore.set(id);

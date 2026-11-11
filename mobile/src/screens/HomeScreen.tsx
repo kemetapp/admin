@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AppText } from '../components/AppText';
 import { Cartouche, TempleImage } from '../components/motifs';
@@ -11,7 +11,7 @@ import { Chip, IconButton, SectionHeader } from '../components/ui';
 import { AddressSheet } from '../components/AddressSheet';
 import { Screen } from '../components/Screen';
 import { useRtlRail } from '../hooks/useRtlRail';
-import { trendingIds } from '../data/mock';
+import { trendingIds, type Category } from '../data/mock';
 import { useCatalog } from '../api/catalog';
 import { useSettings } from '../api/settings';
 import { food } from '../theme/images';
@@ -73,8 +73,8 @@ export default function HomeScreen() {
               onPress={() => setAddressOpen(true)}
             >
               <Icon name="pin" size={15} color={colors.clay} />
-              <AppText family="body" weight="600" size={13.5} numberOfLines={1}>
-                {address.label} · {address.detail}
+              <AppText family="body" weight="700" size={13.5} numberOfLines={1} style={{ flexShrink: 1 }}>
+                التوصيل إلى {address.label}
               </AppText>
               <Icon name="chevronDown" size={13} color={colors.muted} />
             </Pressable>
@@ -142,15 +142,24 @@ export default function HomeScreen() {
               accessibilityRole="button"
               accessibilityLabel={cat.label}
               onPress={() => router.push({ pathname: '/search', params: { cat: cat.id } })}
+              onLongPress={() => {
+                // تشخيص سريع: اضغط مطوّل على الفئة عشان تشوف بيانات صورتها.
+                Alert.alert(
+                  cat.label,
+                  [
+                    `id: ${cat.id}`,
+                    `image key: ${cat.image ?? '—'}`,
+                    `imageUrl: ${
+                      cat.imageUrl
+                        ? `${cat.imageUrl.slice(0, 24)}… (${cat.imageUrl.length} حرف)`
+                        : 'مفيش'
+                    }`,
+                  ].join('\n'),
+                );
+              }}
               style={({ pressed }) => [styles.cat, pressed && { opacity: 0.8 }]}
             >
-              <TempleImage
-                source={food[cat.image]}
-                width={66}
-                height={66}
-                radiusTop={33}
-                radiusBottom={12}
-              />
+              <CategoryImage category={cat} />
               <AppText
                 family="body"
                 weight="600"
@@ -195,15 +204,27 @@ export default function HomeScreen() {
           <Chip label="أعلى تقييم" active={sort === 'rating'} onPress={() => setSort('rating')} />
         </View>
         <View style={{ gap: 12 }}>
-          {restaurantList.map((restaurant) => (
-            <RestaurantBanner
-              key={restaurant.id}
-              restaurant={restaurant}
-              onPress={() =>
-                router.push({ pathname: '/restaurant/[id]', params: { id: restaurant.id } })
-              }
-            />
-          ))}
+          {restaurantList.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Icon name="home" size={30} color={colors.sand2} />
+              <AppText family="display" weight="800" size={14.5} align="center" style={{ marginTop: 10 }}>
+                مفيش مطاعم متاحة دلوقتي
+              </AppText>
+              <AppText family="body" size={11.5} color={colors.muted} align="center" lineHeight={19}>
+                بنجهّز المطاعم القريبة منك — جرّب تاني بعد شوية.
+              </AppText>
+            </View>
+          ) : (
+            restaurantList.map((restaurant) => (
+              <RestaurantBanner
+                key={restaurant.id}
+                restaurant={restaurant}
+                onPress={() =>
+                  router.push({ pathname: '/restaurant/[id]', params: { id: restaurant.id } })
+                }
+              />
+            ))
+          )}
         </View>
 
         <View style={{ height: 10 }} />
@@ -211,6 +232,34 @@ export default function HomeScreen() {
 
       <AddressSheet visible={addressOpen} onClose={() => setAddressOpen(false)} />
     </Screen>
+  );
+}
+
+function CategoryImage({ category }: { category: Category }) {
+  // بنقبل بس الصور المرفوعة (base64) أو روابط صور مباشرة (بامتداد صورة).
+  // القاعدة: broken بتتحوّل true مرة واحدة بس — ممنوع نرجّعها false،
+  // وإلا الصورة المكسورة تفضل تتبدّل مع البديلة = رجّة مستمرة في الشاشة.
+  const [broken, setBroken] = useState(false);
+  const local = category.image && food[category.image] ? food[category.image] : food.grill;
+
+  const remote = useMemo(() => {
+    const url = category.imageUrl ?? '';
+    const usable =
+      url.startsWith('data:image') || /\.(jpe?g|png|webp|gif|avif)(\?.*)?$/i.test(url);
+    return usable ? { uri: url } : null;
+  }, [category.imageUrl]);
+
+  return (
+    <TempleImage
+      source={broken || !remote ? local : remote}
+      width={66}
+      height={66}
+      radiusTop={33}
+      radiusBottom={12}
+      contentFit="contain"
+      inset={5}
+      onError={() => setBroken(true)}
+    />
   );
 }
 
@@ -243,6 +292,16 @@ const styles = StyleSheet.create({
     borderRightColor: colors.line,
   },
   catRail: { flexDirection: 'row-reverse', gap: 13, paddingBottom: 4 },
+  emptyBox: {
+    alignItems: 'center',
+    paddingVertical: 26,
+    paddingHorizontal: 20,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.goldLine,
+    backgroundColor: colors.goldSoft,
+    gap: 4,
+  },
   closedBar: {
     flexDirection: 'row-reverse',
     alignItems: 'center',

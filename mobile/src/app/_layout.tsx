@@ -19,6 +19,7 @@ import {
   IBMPlexSansArabic_700Bold,
 } from '@expo-google-fonts/ibm-plex-sans-arabic';
 import { CartProvider } from '../state/CartContext';
+import { LocationGate } from '../components/LocationGate';
 import { addressListStore, addressSelectedStore } from '../state/addresses';
 import { favoritesStore } from '../state/favorites';
 import { ordersStore } from '../state/orders';
@@ -27,6 +28,7 @@ import { paymentListStore, paymentSelectedStore } from '../state/payment';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useCatalogSync } from '../api/catalog';
 import { useSettingsSync } from '../api/settings';
+import { useZonesSync } from '../api/zones';
 import { colors } from '../theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -72,6 +74,7 @@ export default function RootLayout() {
   const reducedMotion = useReducedMotion();
   useCatalogSync();
   useSettingsSync();
+  useZonesSync();
 
   if (!loaded && !error) return null;
 
@@ -106,8 +109,13 @@ export default function RootLayout() {
             <Stack.Screen name="checkout" />
             <Stack.Screen name="tracking" options={{ animation: reducedMotion ? 'none' : 'fade' }} />
             <Stack.Screen name="notifications" />
+            <Stack.Screen name="map" />
+            <Stack.Screen name="address-choice" />
+            <Stack.Screen name="community" />
+            <Stack.Screen name="chat" />
             <Stack.Screen name="account" />
           </Stack>
+          <LocationGate />
         </View>
       </CartProvider>
     </SafeAreaProvider>

@@ -155,7 +155,7 @@ function CartFab({ count, onPress }: { count: number; onPress: () => void }) {
             style={styles.fabFill}
           />
           <View pointerEvents="none" style={styles.fabRing} />
-          <Icon name="cart" size={21} color={colors.goldSoft} strokeWidth={1.8} />
+          <Icon name="cart" size={28} color={colors.goldSoft} strokeWidth={1.9} />
         </Pressable>
 
         {count > 0 ? (
@@ -177,7 +177,7 @@ function CartFab({ count, onPress }: { count: number; onPress: () => void }) {
   );
 }
 
-const FAB = 50;
+const FAB = 60;
 
 const styles = StyleSheet.create({
   wrap: {

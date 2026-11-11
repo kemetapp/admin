@@ -1,0 +1,81 @@
+version: '3.9'
+
+# KEMET GIS stack — كله مفتوح المصدر ومستضاف ذاتيًا.
+# التشغيل: docker compose up -d
+# ملاحظة: OSRM وNominatim محتاجين تحميل بيانات مصر مرة واحدة (انظر README).
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: kemet-db
+    environment:
+      POSTGRES_DB: kemet
+      POSTGRES_USER: kemet
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-kemet_dev_pw}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./server/sql/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+    ports: ['5433:5432']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kemet -d kemet']
+      interval: 10s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: kemet-redis
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes: ['redis_data:/data']
+    ports: ['6380:6379']
+
+  # التوجيه على شبكة الطرق — يحتاج ملف osm.pbf لمصر في ./data/osrm
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: kemet-osrm
+    command: >
+      osrm-routed --algorithm mld /data/egypt-latest.osrm
+    volumes: ['./data/osrm:/data']
+    ports: ['5000:5000']
+    restart: unless-stopped
+
+  # البحث بالعنوان — يحتاج تحميل بيانات Nominatim (ثقيل، خطوة منفصلة)
+  nominatim:
+    image: mediagis/nominatim:4.4
+    container_name: kemet-nominatim
+    environment:
+      PBF_URL: https://download.geofabrik.de/africa/egypt-latest.osm.pbf
+      REPLICATION_URL: https://download.geofabrik.de/africa/egypt-updates/
+      NOMINATIM_PASSWORD: ${NOMINATIM_PASSWORD:-nominatim_dev}
+    volumes: ['nominatim_data:/var/lib/postgresql/14/main']
+    shm_size: 1gb
+    ports: ['8081:8080']
+    restart: unless-stopped
+
+  api:
+    build: ./server
+    container_name: kemet-api
+    environment:
+      DATABASE_URL: postgres://kemet:${DB_PASSWORD:-kemet_dev_pw}@db:5432/kemet
+      REDIS_URL: redis://redis:6379
+      OSRM_URL: http://osrm:5000
+      NOMINATIM_URL: http://nominatim:8080
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
+      PORT: '4000'
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+    ports: ['4000:4000']
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: kemet-nginx
+    volumes: ['./nginx/nginx.conf:/etc/nginx/nginx.conf:ro']
+    ports: ['8080:80']
+    depends_on: [api]
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  redis_data:
+  nominatim_data:

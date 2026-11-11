@@ -1,46 +1,137 @@
 import React from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
-import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText } from '../components/AppText';
-import { Icon, type IconName } from '../components/Icon';
+import { Icon } from '../components/Icon';
 import { GoldFrame, SheetHandle } from '../components/motifs';
 import { IconButton } from '../components/ui';
 import { itemsLabel } from '../utils/arabic';
-import { orders } from '../data/mock';
 import { useCatalog } from '../api/catalog';
 import { food } from '../theme/images';
 import { colors, shadow, shadowStrong } from '../theme';
-import { useLiveOrder } from '../state/orders';
+import { useAuthUid, useMyOrderDetail } from '../api/orders';
+import { useOrderTracking } from '../api/tracking';
+import { MapView } from '../components/MapView';
+import { formatMeters, haversineMeters, etaMinutes } from '../lib/geo';
 
-const COURIER_PHONE = '+201012345678';
-
-const STEPS: { title: string; note: string; state: 'done' | 'now' | 'next'; icon?: IconName }[] = [
-  { title: 'تم تأكيد الطلب', note: '9:12 م', state: 'done', icon: 'check' },
-  { title: 'المطعم بيحضّر طلبك', note: '9:18 م', state: 'done', icon: 'check' },
-  { title: 'المندوب استلم الطلب', note: '9:34 م · على بعد 1.2 كم', state: 'now', icon: 'scooter' },
-  { title: 'التوصيل', note: 'متوقع 9:52 م', state: 'next' },
+/** ظ…ط±ط§ط­ظ„ ط§ظ„طھطھط¨ط¹ â€” ط¨طھطھط­ظˆظ‘ظ„ ظ„ط­ط§ظ„ط© done / now / next ط­ط³ط¨ ط­ط§ظ„ط© ط§ظ„ط·ظ„ط¨ ط§ظ„ط­ظ‚ظٹظ‚ظٹط©. */
+const STEP_TITLES = [
+  'طھظ… طھط£ظƒظٹط¯ ط§ظ„ط·ظ„ط¨',
+  'ط§ظ„ظ…ط·ط¹ظ… ط¨ظٹط­ط¶ظ‘ط± ط·ظ„ط¨ظƒ',
+  'ط§ظ„ظ…ظ†ط¯ظˆط¨ ط§ط³طھظ„ظ… ط§ظ„ط·ظ„ط¨',
+  'ظپظٹ ط§ظ„ط·ط±ظٹظ‚ ط¥ظ„ظٹظƒ',
+  'طھظ… ط§ظ„طھط³ظ„ظٹظ…',
 ];
+
+function stageOf(status: string): number {
+  switch (status) {
+    case 'pending':
+    case 'confirmed':
+      return 0;
+    case 'preparing':
+      return 1;
+    case 'ready_for_pickup':
+    case 'picked_up':
+      return 2;
+    case 'out_for_delivery':
+    case 'arrived':
+      return 3;
+    case 'delivered':
+      return 4;
+    default:
+      return 0;
+  }
+}
+
+const STATUS_TEXT: Record<string, string> = {
+  pending: 'ط¨ظ†ط³طھظ„ظ… ط·ظ„ط¨ظƒ',
+  confirmed: 'ط·ظ„ط¨ظƒ ط§طھط£ظƒط¯',
+  preparing: 'ط§ظ„ظ…ط·ط¹ظ… ط¨ظٹط¬ظ‡ظ‘ط²',
+  ready_for_pickup: 'ط¬ط§ظ‡ط² ظ„ظ„ظ…ظ†ط¯ظˆط¨',
+  picked_up: 'ط§ظ„ظ…ظ†ط¯ظˆط¨ ط§ط³طھظ„ظ…',
+  out_for_delivery: 'ظپظٹ ط§ظ„ط·ط±ظٹظ‚ ط¥ظ„ظٹظƒ',
+  arrived: 'ط§ظ„ظ…ظ†ط¯ظˆط¨ ط¹ظ†ط¯ظƒ',
+  delivered: 'طھظ… ط§ظ„طھط³ظ„ظٹظ…',
+  cancelled: 'ط§ظ„ط·ظ„ط¨ ظ…ظ„ط؛ظٹ',
+};
 
 export default function TrackingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const liveOrder = useLiveOrder() ?? orders[0];
+  const uid = useAuthUid();
+  const { order, loading } = useMyOrderDetail(uid);
+  const courier = useOrderTracking(order?.id ?? null);
   const { getRestaurant } = useCatalog();
-  const restaurant = getRestaurant(liveOrder.restaurantId);
-  const eta = liveOrder.eta?.match(/\d+/)?.[0] ?? '18';
-  const scheduled = Boolean(liveOrder.eta?.includes('م'));
+
+  if (!loading && !order) {
+    return (
+      <View style={styles.emptyWrap}>
+        <Icon name="scooter" size={42} color={colors.sand2} />
+        <AppText family="display" weight="800" size={17} align="center" style={{ marginTop: 14 }}>
+          ظ…ظپظٹط´ ط·ظ„ط¨ ط´ط؛ط§ظ„ ط¯ظ„ظˆظ‚طھظٹ
+        </AppText>
+        <AppText
+          family="body"
+          size={12.5}
+          color={colors.muted}
+          align="center"
+          lineHeight={21}
+          style={{ marginTop: 6, maxWidth: 260 }}
+        >
+          ط§ط®طھط§ط± ط£ظƒظ„طھظƒ ظ…ظ† ط§ظ„ظ…ط·ط§ط¹ظ… ظˆط£ظƒظ‘ط¯ ط§ظ„ط·ظ„ط¨طŒ ظˆظ‡طھظ‚ط¯ط± طھطھط§ط¨ط¹ ظƒظ„ ط®ط·ظˆط© ظ‡ظ†ط§.
+        </AppText>
+        <Pressable
+          onPress={() => router.replace('/(tabs)')}
+          accessibilityRole="button"
+          accessibilityLabel="ط§طھظپط¶ظ„ ط§ظ„ظ…ط·ط§ط¹ظ…"
+          style={({ pressed }) => [styles.emptyBtn, pressed && { opacity: 0.85 }]}
+        >
+          <AppText family="body" weight="700" size={13} color={colors.white}>
+            ط§طھظپط±ط¬ ط¹ظ„ظ‰ ط§ظ„ظ…ط·ط§ط¹ظ…
+          </AppText>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (!order) {
+    return <View style={styles.root} />;
+  }
+
+  const restaurant = getRestaurant(order.restaurantId);
+  const stage = stageOf(order.status);
+  const cancelled = order.status === 'cancelled';
+  const etaValue = order.eta?.match(/\d+/)?.[0] ?? 'â€”';
+  const scheduled = Boolean(order.eta && order.eta.includes('ظ…'));
+  const hasCourier = Boolean(order.courierName);
+
+  // ط§ظ„طھطھط¨ظ‘ط¹ ط§ظ„ط­ظٹ: ظ…ظˆظ‚ط¹ ط§ظ„ظ…ظ†ط¯ظˆط¨ ظ…ظ† `tracking/{orderId}` + ظ…ظˆظ‚ط¹ ط§ظ„ط¹ظ…ظٹظ„
+  const destination =
+    typeof order.addressLat === 'number' && typeof order.addressLng === 'number'
+      ? { lat: order.addressLat, lng: order.addressLng }
+      : null;
+
+  const remaining = courier && destination ? haversineMeters(courier, destination) : 0;
+  const liveMarkers = [
+    ...(destination ? [{ ...destination, label: 'ط¹ظ†ظˆط§ظ†ظƒ', color: '#4F5B2A' }] : []),
+    ...(courier ? [{ ...courier, label: 'ط§ظ„ظ…ظ†ط¯ظˆط¨', color: '#B4562F' }] : []),
+  ];
 
   return (
     <View style={styles.root}>
-      <MapCanvas />
+      <MapView
+        center={courier ?? destination ?? { lat: 24.0915, lng: 32.8998 }}
+        zoom={15}
+        markers={liveMarkers}
+        style={StyleSheet.absoluteFill}
+      />
 
       <Pressable
         onPress={() => router.replace('/(tabs)')}
         accessibilityRole="button"
-        accessibilityLabel="رجوع للرئيسية"
+        accessibilityLabel="ط±ط¬ظˆط¹ ظ„ظ„ط±ط¦ظٹط³ظٹط©"
         style={[styles.floatingBack, { top: insets.top + 6 }]}
       >
         <Icon name="arrowLeft" size={19} color={colors.ink} />
@@ -49,81 +140,76 @@ export default function TrackingScreen() {
       <View style={[styles.trackTop, { top: insets.top + 56 }]}>
         <View style={{ flex: 1 }}>
           <AppText family="body" weight="600" size={11} color={colors.muted} lineHeight={16}>
-            طلبك في الطريق
+            {order.number ? `ط·ظ„ط¨ #${order.number}` : 'ط·ظ„ط¨ظƒ'}
           </AppText>
           <AppText family="display" weight="800" size={17} lineHeight={25} style={{ marginTop: 2 }}>
-            طلبك من {restaurant.name} في الطريق
+            {cancelled ? 'ط§ظ„ط·ظ„ط¨ ط§طھظ„ط؛ظ‰' : STATUS_TEXT[order.status] ?? 'ط·ظ„ط¨ظƒ ظ…ط¹ط§ظ†ط§'}
           </AppText>
         </View>
-        <View style={styles.eta}>
-          <AppText
-            family="display"
-            weight="800"
-            size={scheduled ? 14 : 26}
-            color={colors.olive}
-            align="center"
-            lineHeight={scheduled ? 22 : 30}
-          >
-            {scheduled ? liveOrder.eta : eta}
-          </AppText>
-          <AppText family="body" size={10} color={colors.muted} align="center">
-            {scheduled ? 'موعد التوصيل' : 'دقيقة'}
-          </AppText>
-        </View>
+        {!cancelled ? (
+          <View style={styles.eta}>
+            <AppText
+              family="display"
+              weight="800"
+              size={scheduled ? 14 : 26}
+              color={colors.olive}
+              align="center"
+              lineHeight={scheduled ? 22 : 30}
+            >
+              {scheduled ? order.eta : etaValue}
+            </AppText>
+            <AppText family="body" size={10} color={colors.muted} align="center">
+              {scheduled ? 'ظ…ظˆط¹ط¯ ط§ظ„طھظˆطµظٹظ„' : 'ط¯ظ‚ظٹظ‚ط©'}
+            </AppText>
+          </View>
+        ) : null}
       </View>
 
       <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <SheetHandle />
-        <View style={styles.courier}>
-          <View style={styles.avatar}>
-            <AppText family="display" weight="700" size={17} color="#F3E4BC" align="center" lineHeight={22}>
-              أ
-            </AppText>
+        {hasCourier ? (
+          <View style={styles.courier}>
+            <View style={styles.avatar}>
+              <AppText family="display" weight="700" size={17} color="#F3E4BC" align="center" lineHeight={22}>
+                {order.courierName.charAt(0)}
+              </AppText>
+            </View>
+            <View style={{ flex: 1 }}>
+              <AppText family="body" weight="700" size={13.5} lineHeight={20}>
+                {order.courierName}
+              </AppText>
+              <AppText family="body" size={11} color={colors.muted} lineHeight={17} style={{ marginTop: 2 }}>
+                ظ…ظ†ط¯ظˆط¨ ط§ظ„طھظˆطµظٹظ„
+              </AppText>
+            </View>
+            <View style={styles.cActions}>
+              <IconButton
+                name="phone"
+                size={40}
+                color={colors.olive}
+                accessibilityLabel="ط§طھطµط§ظ„ ط¨ط§ظ„ظ…ظ†ط¯ظˆط¨"
+                onPress={() => {
+                  if (order.courierPhone) void Linking.openURL(`tel:${order.courierPhone}`);
+                }}
+              />
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <AppText family="body" weight="700" size={13.5} lineHeight={20}>
-              أحمد مصطفى
-            </AppText>
-            <AppText family="body" size={11} color={colors.muted} lineHeight={17} style={{ marginTop: 2 }}>
-              مندوب · 4.9 ★ · سكوتر
-            </AppText>
-          </View>
-          <View style={styles.cActions}>
-            <IconButton
-              name="phone"
-              size={40}
-              color={colors.olive}
-              accessibilityLabel="اتصال بالمندوب"
-              onPress={() => {
-                void Linking.openURL(`tel:${COURIER_PHONE}`);
-              }}
-            />
-            <IconButton
-              name="message"
-              size={40}
-              color={colors.olive}
-              accessibilityLabel="رسالة للمندوب"
-              onPress={() => {
-                void Linking.openURL(`sms:${COURIER_PHONE}`);
-              }}
-            />
-          </View>
-        </View>
+        ) : null}
 
+        {courier && remaining > 0 ? (
+          <AppText family="body" weight="600" size={10.5} color={colors.olive} lineHeight={16}>
+            ط§ظ„ظ…ظ†ط¯ظˆط¨ ط¹ظ„ظ‰ ط¨ط¹ط¯ {formatMeters(remaining)} آ· ~{etaMinutes(remaining)} ط¯ظ‚ظٹظ‚ط©
+          </AppText>
+        ) : null}
         <View style={styles.steps}>
-          {STEPS.map((step, index) => {
-            const done = step.state === 'done';
-            const now = step.state === 'now';
-            const last = index === STEPS.length - 1;
+          {STEP_TITLES.map((title, index) => {
+            const done = !cancelled && index < stage;
+            const now = !cancelled && index === stage;
+            const last = index === STEP_TITLES.length - 1;
             return (
-              <View key={step.title} style={[styles.step, last && { paddingBottom: 0 }]}>
+              <View key={title} style={[styles.step, last && { paddingBottom: 0 }]}>
                 {!last ? (
-                  <View
-                    style={[
-                      styles.connector,
-                      done && { backgroundColor: colors.olive },
-                    ]}
-                  />
+                  <View style={[styles.connector, done && { backgroundColor: colors.olive }]} />
                 ) : null}
                 <View
                   style={[
@@ -132,22 +218,27 @@ export default function TrackingScreen() {
                     now && styles.stepDotNow,
                   ]}
                 >
-                  {step.icon ? (
-                    <Icon
-                      name={step.icon}
-                      size={11}
-                      color={colors.white}
-                      strokeWidth={2.4}
-                    />
+                  {done ? (
+                    <Icon name="check" size={11} color={colors.white} strokeWidth={2.4} />
+                  ) : now ? (
+                    <Icon name="scooter" size={11} color={colors.white} strokeWidth={2.4} />
                   ) : null}
                 </View>
                 <View style={styles.stepTxt}>
-                  <AppText family="body" weight="700" size={12.5} lineHeight={19}>
-                    {step.title}
+                  <AppText
+                    family="body"
+                    weight={now ? '700' : '600'}
+                    size={12.5}
+                    lineHeight={19}
+                    color={done || now ? colors.ink : colors.muted}
+                  >
+                    {title}
                   </AppText>
-                  <AppText family="body" size={10.5} color={colors.muted} lineHeight={16} style={{ marginTop: 1 }}>
-                    {step.note}
-                  </AppText>
+                  {now ? (
+                    <AppText family="body" size={10.5} color={colors.olive} lineHeight={16} style={{ marginTop: 1 }}>
+                      ط¯ظ„ظˆظ‚طھظٹ
+                    </AppText>
+                  ) : null}
                 </View>
               </View>
             );
@@ -161,73 +252,24 @@ export default function TrackingScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <AppText family="body" weight="700" size={12.5} lineHeight={19}>
-              {restaurant.name}
+              {order.restaurantName || restaurant.name}
             </AppText>
             <AppText family="body" size={10.5} color={colors.muted} lineHeight={16} style={{ marginTop: 2 }}>
-              {liveOrder.itemsCount} {itemsLabel(liveOrder.itemsCount)} · {liveOrder.total} ج.م
+              {order.itemsCount} {itemsLabel(order.itemsCount)} آ· {order.total} ط¬.ظ…
             </AppText>
           </View>
           <Pressable
             onPress={() => router.replace('/(tabs)/orders')}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="تفاصيل الطلبات"
+            accessibilityLabel="طھظپط§طµظٹظ„ ط§ظ„ط·ظ„ط¨ط§طھ"
           >
             <AppText family="body" weight="700" size={11.5} color={colors.olive}>
-              طلباتي
+              ط·ظ„ط¨ط§طھظٹ
             </AppText>
           </Pressable>
         </View>
       </View>
-    </View>
-  );
-}
-
-function MapCanvas() {
-  return (
-    <View style={StyleSheet.absoluteFill}>
-      <Svg width="100%" height="100%" viewBox="0 0 390 844" preserveAspectRatio="xMidYMid slice">
-        <Rect width={390} height={844} fill="#E9E6DB" />
-        <Rect x={24} y={500} width={118} height={92} rx={14} fill="#DCE8D8" />
-        <Path
-          d="M-30 90 C70 150 40 270 140 340 C240 410 210 560 320 640 C380 690 400 700 430 780"
-          fill="none"
-          stroke="#BFD9D6"
-          strokeWidth={52}
-          opacity={0.75}
-        />
-        <Path d="M-20 190 H410" stroke="#FBF6E8" strokeWidth={16} strokeLinecap="round" />
-        <Path d="M-20 430 H410" stroke="#FBF6E8" strokeWidth={16} strokeLinecap="round" />
-        <Path d="M-20 660 H410" stroke="#FBF6E8" strokeWidth={16} strokeLinecap="round" />
-        <Path d="M110 -20 V860" stroke="#FBF6E8" strokeWidth={16} strokeLinecap="round" />
-        <Path d="M305 -20 V860" stroke="#FBF6E8" strokeWidth={16} strokeLinecap="round" />
-        <Path d="M-20 770 L190 600 L410 650" stroke="#FBF6E8" strokeWidth={16} strokeLinecap="round" />
-
-        <Path d="M-20 190 H410" stroke="#FFFFFF" strokeWidth={2.5} strokeDasharray="9 12" opacity={0.8} />
-        <Path d="M-20 430 H410" stroke="#FFFFFF" strokeWidth={2.5} strokeDasharray="9 12" opacity={0.8} />
-        <Path d="M-20 660 H410" stroke="#FFFFFF" strokeWidth={2.5} strokeDasharray="9 12" opacity={0.8} />
-        <Path d="M110 -20 V860" stroke="#FFFFFF" strokeWidth={2.5} strokeDasharray="9 12" opacity={0.8} />
-        <Path d="M305 -20 V860" stroke="#FFFFFF" strokeWidth={2.5} strokeDasharray="9 12" opacity={0.8} />
-
-        <Path
-          d="M300 420 C300 380 265 370 240 330 C215 290 160 250 110 200"
-          fill="none"
-          stroke="#B4562F"
-          strokeWidth={5}
-          strokeDasharray="2 13"
-          strokeLinecap="round"
-        />
-        <Circle cx={300} cy={420} r={10} fill="#4F5B2A" stroke="#fff" strokeWidth={3} />
-        <Path
-          d="M110 200c-12 0-18 8-18 17a18 18 0 1 0 36 0c0-9-6-17-18-17z"
-          fill="#B4562F"
-          stroke="#fff"
-          strokeWidth={3}
-        />
-        <Circle cx={110} cy={216} r={5} fill="#fff" />
-        <Circle cx={240} cy={330} r={17} fill="#fff" stroke="#4F5B2A" strokeWidth={3} />
-        <Circle cx={240} cy={330} r={6} fill="#4F5B2A" />
-      </Svg>
     </View>
   );
 }
@@ -352,5 +394,21 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.sand,
     flexShrink: 0,
+  },
+  emptyWrap: {
+    flex: 1,
+    backgroundColor: colors.cream,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 28,
+  },
+  emptyBtn: {
+    marginTop: 18,
+    height: 46,
+    paddingHorizontal: 22,
+    borderRadius: 14,
+    backgroundColor: colors.olive,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

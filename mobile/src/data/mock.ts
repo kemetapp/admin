@@ -13,6 +13,8 @@ export type Product = {
   description: string;
   price: number;
   image: FoodKey;
+  /** صورة مرفوعة من اللوحة (base64 أو رابط) — بتاخد الأولوية. */
+  imageUrl?: string;
   category: string;
   serving?: string;
   sizes?: Option[];
@@ -45,6 +47,13 @@ export type Category = {
   id: string;
   label: string;
   image: FoodKey;
+  /** صورة مرفوعة من لوحة التحكم — لو موجودة بتاخد الأولوية على المفتاح المحلي. */
+  imageUrl?: string;
+  /** الفئة الأب — فاضي = فئة رئيسية. */
+  parentId?: string;
+  description?: string;
+  active?: boolean;
+  order?: number;
 };
 
 export type CartLine = {
@@ -70,28 +79,15 @@ export type Address = {
   label: string;
   detail: string;
   note?: string;
+  /** اسم المنطقة من الخريطة/العنونة العكسية. */
+  area?: string;
+  placeName?: string;
+  /** إحداثيات العنوان — من الـGPS أو من الخريطة. */
+  lat?: number;
+  lng?: number;
 };
 
-export const addresses: Address[] = [
-  {
-    id: 'home',
-    label: 'البيت',
-    detail: '12 كورنيش النيل، أسوان',
-    note: 'الدور الرابع · جرس ٤',
-  },
-  {
-    id: 'work',
-    label: 'الشغل',
-    detail: 'شارع أبطال التحرير، أسوان',
-    note: 'مبنى النيل الإداري · الدور الثاني',
-  },
-  {
-    id: 'family',
-    label: 'بيت العيلة',
-    detail: 'حي الصداقة، الجزيرة، أسوان',
-    note: 'بجوار مسجد الصداقة',
-  },
-];
+export const addresses: Address[] = [];
 
 export const coupons = [
   { code: 'KEMET25', title: 'خصم 25 ج.م', hint: 'على أي أوردر فوق 100 ج.م' },
@@ -108,39 +104,18 @@ export type AppNotification = {
 
 export const notifications: AppNotification[] = [
   {
-    id: 'n1',
-    kind: 'order',
-    title: 'طلبك في الطريق',
-    body: 'أحمد استلم أوردرك من مطعم النوبة وهيوصل خلال 18 دقيقة.',
-    when: 'الآن',
-  },
-  {
     id: 'n2',
     kind: 'offer',
     title: 'خصم 25 ج.م على أول أوردر',
     body: 'استخدم كود KEMET25 عند الدفع واستمتع بالخصم على أي أوردر.',
-    when: 'النهاردة 6:20 م',
+    when: 'النهاردة',
   },
   {
     id: 'n3',
     kind: 'offer',
     title: 'توصيل مجاني من كشري أسوان',
     body: 'أول 3 طلبات توصيلها مجاني بكود ASWAN0 — جرّبها قبل ما تخلص.',
-    when: 'امبارح 9:10 م',
-  },
-  {
-    id: 'n4',
-    kind: 'info',
-    title: 'وصلنا حي جديد',
-    body: 'كيميت بقى بيوصل للجزيرة والصداقة. اطلب من مطاعمك المفضلة دلوقتي.',
-    when: 'الجمعة',
-  },
-  {
-    id: 'n5',
-    kind: 'order',
-    title: 'تم توصيل طلبك',
-    body: 'أوردر كشري أسوان وصل بالهنا والشفا. قيّم تجربتك وساعدنا نتحسن.',
-    when: 'الأربعاء',
+    when: 'امبارح',
   },
 ];
 

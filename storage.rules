@@ -1,0 +1,20 @@
+rules_version = '2';
+
+// Firebase Storage — صور الفئات وغيرها من لوحة التحكم.
+// النشر: Firebase Console → Storage → Rules → Publish
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // صور المتجر (فئات · مطاعم · أصناف · عروض)
+    match /{folder}/{file} {
+      allow read: if true;
+      allow write: if isSignedIn()
+                   && request.resource.size < 3 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

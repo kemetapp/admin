@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Image as RNImage, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import Svg, { Circle, Ellipse, G, Path, Rect } from 'react-native-svg';
@@ -142,16 +142,38 @@ export function TempleImage({
   radiusBottom = 14,
   children,
   style,
+  contentFit = 'cover',
+  inset = 0,
+  onError,
+  onLoad,
 }: {
-  source: number;
+  source: number | { uri: string };
   width?: number | `${number}%`;
   height: number;
   radiusTop?: number;
   radiusBottom?: number;
   children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  /** كيف تملأ الصورة الإطار — contain بيسيب الصورة كاملة جوّه الإطار. */
+  contentFit?: 'cover' | 'contain';
+  /** حشو داخلي بالبكسل بين الصورة والإطار. */
+  inset?: number;
+  /** بيتنادى لو الصورة فشلت (مثلاً رابط مكسور) — عشان نرجّع لصورة بديلة. */
+  onError?: () => void;
+  /** بيتنادى لما الصورة تتحمّل بنجاح. */
+  onLoad?: () => void;
 }) {
   const top = radiusTop ?? Math.min(160, Math.round(Number(height) / 2));
+  const inner =
+    inset > 0
+      ? ({
+          position: 'absolute',
+          top: inset,
+          bottom: inset,
+          left: inset,
+          right: inset,
+        } as const)
+      : null;
   return (
     <View
       style={[
@@ -165,12 +187,31 @@ export function TempleImage({
           overflow: 'hidden',
           borderWidth: 1,
           borderColor: colors.goldLineStrong,
-          backgroundColor: colors.sand,
+          backgroundColor: colors.card,
         },
         style,
       ]}
     >
-      <Image source={source} style={StyleSheet.absoluteFill} contentFit="cover" transition={250} />
+      {typeof source === 'object' && source.uri.startsWith('data:') ? (
+        // الصور المرفوعة من اللوحة بتتحفظ base64 — expo-image مش بيعرضها،
+        // فبنستخدم Image المدمجة في React Native.
+        <RNImage
+          source={source}
+          style={inner ?? StyleSheet.absoluteFill}
+          resizeMode={contentFit === 'contain' ? 'contain' : 'cover'}
+          onError={onError}
+          onLoad={onLoad}
+        />
+      ) : (
+        <Image
+          source={source}
+          style={inner ?? StyleSheet.absoluteFill}
+          contentFit={contentFit}
+          transition={0}
+          onError={onError}
+          onLoad={onLoad}
+        />
+      )}
       {children}
     </View>
   );

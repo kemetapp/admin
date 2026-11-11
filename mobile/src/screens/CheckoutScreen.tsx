@@ -19,26 +19,30 @@ import { itemsLabel } from '../utils/arabic';
 import { colors, fonts } from '../theme';
 import { useCart } from '../state/CartContext';
 import { useAddress } from '../state/addresses';
-import { addOrder } from '../state/orders';
+import { placeOrder } from '../api/orders';
 import { selectPayment, usePayment, usePayments } from '../state/payment';
 import { useSettings } from '../api/settings';
+import { useZones, zoneAt } from '../api/zones';
+import { useSessionState } from '../state/session';
 
 const SLOTS = ['7:30 م', '8:00 م', '8:30 م', '9:00 م'];
 
 export default function CheckoutScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { total, count, subtotal, lines, restaurantId, restaurantName, clearAll, clearPromo } =
+  const { total, count, subtotal, lines, delivery, tax, discount, restaurantId, restaurantName, clearAll, clearPromo } =
     useCart();
   const address = useAddress();
   const payment = usePayment();
   const paymentMethods = usePayments();
   const settings = useSettings();
+  const { signedIn } = useSessionState();
   const [when, setWhen] = useState<'now' | 'later'>('now');
   const [slot, setSlot] = useState(SLOTS[0]);
   const [note, setNote] = useState('');
   const [addressOpen, setAddressOpen] = useState(false);
   const [placing, setPlacing] = useState(false);
+  const [placeError, setPlaceError] = useState<string | null>(null);
 
   // إعدادات اللوحة بتتحكم في المتجر والدفع والحد الأدنى
   const closed = !settings.storeOpen || !settings.acceptingOrders;
@@ -47,25 +51,97 @@ export default function CheckoutScreen() {
     method.kind === 'cash' ? settings.payCash : settings.payWallet,
   );
 
-  const confirmOrder = () => {
-    if (count === 0) return;
+  // حدود الخدمة: لو العنوان له إحداثيات ومناطق محددة، لازم يكون جوه واحدة.
+  const { zones } = useZones();
+  const outsideZone = Boolean(
+    zones.length > 0 &&
+      typeof address.lat === 'number' &&
+      typeof address.lng === 'number' &&
+      !zoneAt({ lat: address.lat, lng: address.lng }, zones),
+  );
+
+  const confirmOrder = async () => {
+    if (count === 0 || placing) return;
     const first = lines[0];
     setPlacing(true);
-    addOrder({
-      id: `o-${Date.now()}`,
-      restaurantId: restaurantId ?? first.restaurantId,
-      restaurantName: restaurantName ?? first.restaurantName,
-      itemsCount: count,
-      total,
-      status: 'live',
-      when: when === 'now' ? 'في أقرب وقت' : `متوقع ${slot}`,
-      eta: when === 'now' ? '20–30 د' : slot,
-      image: first.image,
-    });
-    clearAll();
-    clearPromo();
-    router.replace('/tracking');
+    try {
+      await placeOrder({
+        restaurantId: restaurantId ?? first.restaurantId,
+        restaurantName: restaurantName ?? first.restaurantName,
+        items: lines.map((line) => ({ name: line.name, qty: line.qty, price: line.unitPrice })),
+        itemsCount: count,
+        subtotal,
+        delivery,
+        tax,
+        discount,
+        total,
+        address: { label: address.label, detail: address.detail, lat: address.lat, lng: address.lng },
+        payment: { kind: payment.kind, label: payment.label },
+        eta: when === 'now' ? '20–30 د' : slot,
+        image: first.image,
+      });
+      clearAll();
+      clearPromo();
+      router.replace('/tracking');
+    } catch {
+      setPlaceError('مش قادر أرسل الطلب — راجع الاتصال وحاول تاني.');
+    } finally {
+      setPlacing(false);
+    }
   };
+
+  if (!signedIn) {
+    return (
+      <Screen>
+        <View style={styles.head}>
+          <View style={styles.headStart}>
+            <BackButton />
+            <AppText family="display" weight="800" size={20}>
+              إتمام الطلب
+            </AppText>
+          </View>
+        </View>
+        <View style={styles.empty}>
+          <Icon name="lock" size={40} color={colors.sand2} />
+          <AppText family="display" weight="800" size={16} align="center" style={{ marginTop: 12 }}>
+            محتاج حساب عشان تطلب
+          </AppText>
+          <AppText
+            family="body"
+            size={12}
+            color={colors.muted}
+            align="center"
+            lineHeight={20}
+            style={{ marginTop: 6 }}
+          >
+            أنت بتتصفح كزائر. سجّل دخولك أو اعمل حساب عشان تكمّل طلبك وتتابعه.
+          </AppText>
+          <View style={styles.gateActions}>
+            <Pressable
+              onPress={() => router.push('/login')}
+              accessibilityRole="button"
+              accessibilityLabel="تسجيل الدخول"
+              style={({ pressed }) => [styles.gatePrimary, pressed && { opacity: 0.9 }]}
+            >
+              <AppText family="body" weight="700" size={12.5} color={colors.white}>
+                تسجيل الدخول
+              </AppText>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push('/signup')}
+              accessibilityRole="button"
+              accessibilityLabel="إنشاء حساب"
+              style={({ pressed }) => [styles.gateGhost, pressed && { opacity: 0.9 }]}
+            >
+              <AppText family="body" weight="700" size={12.5} color={colors.olive}>
+                إنشاء حساب
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
+      </Screen>
+    );
+  }
 
   if (count === 0 && !placing) {
     return (
@@ -130,6 +206,47 @@ export default function CheckoutScreen() {
         ) : null}
 
         <SectionLabel title="عنوان التوصيل" first />
+
+        <View style={styles.pickRow}>
+          <Pressable
+            onPress={() => router.push('/address-choice?mode=here')}
+            accessibilityRole="button"
+            accessibilityLabel="هستلم طلبي في مكاني"
+            style={({ pressed }) => [styles.pickBtn, pressed && { opacity: 0.9 }]}
+          >
+            <Icon name="pin" size={14} color={colors.olive} />
+            <AppText family="body" weight="700" size={11} color={colors.olive}>
+              هستلم في مكاني
+            </AppText>
+          </Pressable>
+          <Pressable
+            onPress={() => router.push('/address-choice?mode=other')}
+            accessibilityRole="button"
+            accessibilityLabel="هستلم في مكان تاني"
+            style={({ pressed }) => [styles.pickBtn, pressed && { opacity: 0.9 }]}
+          >
+            <Icon name="pin" size={14} color={colors.olive} />
+            <AppText family="body" weight="700" size={11} color={colors.olive}>
+              مكان تاني
+            </AppText>
+          </Pressable>
+        </View>
+
+        {outsideZone ? (
+          <View style={styles.zoneWarn}>
+            <Icon name="minus" size={14} color={colors.clay} />
+            <AppText
+              family="body"
+              weight="700"
+              size={11.5}
+              color={colors.clay}
+              lineHeight={18}
+              style={{ flex: 1 }}
+            >
+              العنوان ده خارج نطاق الخدمة — اختار مكان تاني جوه حدود التوصيل
+            </AppText>
+          </View>
+        ) : null}
         <View style={styles.cardBlock}>
           <View style={styles.cardIcon}>
             <Icon name="pin" size={18} color={colors.olive} />
@@ -273,14 +390,19 @@ export default function CheckoutScreen() {
           {count} {itemsLabel(count)} · الأسعار شاملة الضريبة
         </AppText>
         <View style={{ height: 10 }} />
+        {placeError ? (
+          <AppText family="body" weight="600" size={11} color={colors.clay} align="center">
+            {placeError}
+          </AppText>
+        ) : null}
       </ScrollView>
 
       <View style={[styles.ctaBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <PrimaryButton
           label="أكد الطلب"
           price={`${total} ج.م`}
-          onPress={confirmOrder}
-          disabled={placing || closed || belowMin}
+          onPress={() => void confirmOrder()}
+          disabled={placing || closed || belowMin || outsideZone}
         />
       </View>
 
@@ -315,6 +437,34 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 18,
     marginBottom: 9,
+  },
+  pickRow: {
+    flexDirection: 'row-reverse',
+    gap: 8,
+    marginBottom: 10,
+  },
+  pickBtn: {
+    flex: 1,
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.goldLine,
+    backgroundColor: colors.oliveSoft,
+  },
+  zoneWarn: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 7,
+    padding: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(180,86,47,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(180,86,47,0.35)',
+    marginBottom: 10,
   },
   notice: {
     flexDirection: 'row-reverse',
@@ -415,6 +565,31 @@ const styles = StyleSheet.create({
     borderTopColor: colors.lineSoft,
   },
   empty: { alignItems: 'center', paddingVertical: 56, paddingHorizontal: 24 },
+  gateActions: {
+    flexDirection: 'row-reverse',
+    gap: 8,
+    marginTop: 20,
+    alignSelf: 'stretch',
+    maxWidth: 340,
+  },
+  gatePrimary: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: colors.olive,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gateGhost: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.goldLine,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   emptyBtn: {
     marginTop: 18,
     height: 46,
